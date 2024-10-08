@@ -42,7 +42,9 @@
 #define HNSW_DEFAULT_EF_SEARCH	40
 #define HNSW_MIN_EF_SEARCH		1
 #define HNSW_MAX_EF_SEARCH		1000
-
+#define HNSW_DEFAULT_USE_PQ		0
+#define HNSW_MIN_USE_PQ			0
+#define HNSW_MAX_USE_PQ			1
 /* Tuple types */
 #define HNSW_ELEMENT_TUPLE_TYPE  1
 #define HNSW_NEIGHBOR_TUPLE_TYPE 2
@@ -172,6 +174,7 @@ typedef struct HnswOptions
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	int			m;				/* number of connections */
 	int			efConstruction; /* size of dynamic candidate list */
+	int         use_pq;         /*whether to use Product Quantization*/
 }			HnswOptions;
 
 typedef struct HnswGraph
@@ -253,6 +256,7 @@ typedef struct HnswBuildState
 	int			dimensions;
 	int			m;
 	int			efConstruction;
+	int         use_pq;
 
 	/* Statistics */
 	double		indtuples;
@@ -287,6 +291,7 @@ typedef struct HnswMetaPageData
 	uint32		dimensions;
 	uint16		m;
 	uint16		efConstruction;
+	uint16      use_pq;
 	BlockNumber entryBlkno;
 	OffsetNumber entryOffno;
 	int16		entryLevel;
@@ -372,6 +377,7 @@ typedef struct HnswVacuumState
 /* Methods */
 int			HnswGetM(Relation index);
 int			HnswGetEfConstruction(Relation index);
+int         HnswGetuse_pq(Relation index);
 FmgrInfo   *HnswOptionalProcInfo(Relation index, uint16 procnum);
 Datum		HnswNormValue(const HnswTypeInfo * typeInfo, Oid collation, Datum value);
 bool		HnswCheckNorm(FmgrInfo *procinfo, Oid collation, Datum value);

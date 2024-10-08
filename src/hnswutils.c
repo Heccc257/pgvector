@@ -125,6 +125,15 @@ HnswGetM(Relation index)
 
 	return HNSW_DEFAULT_M;
 }
+int HnswGetuse_pq(Relation index)
+{
+	HnswOptions *opts = (HnswOptions *) index->rd_options;
+
+	if (opts)
+		return opts->use_pq;
+
+	return HNSW_DEFAULT_USE_PQ;
+}
 
 /*
  * Get the size of the dynamic candidate list in the index
