@@ -11,7 +11,7 @@
 #include "utils/relptr.h"
 #include "utils/sampling.h"
 #include "vector.h"
-
+#include "pq_dist.h"
 #define HNSW_MAX_DIM 2000
 #define HNSW_MAX_NNZ 1000
 
@@ -45,6 +45,13 @@
 #define HNSW_DEFAULT_USE_PQ		0
 #define HNSW_MIN_USE_PQ			0
 #define HNSW_MAX_USE_PQ			1
+#define HNSW_DEFAULT_NBITS		4
+#define HNSW_MIN_NBITS			4
+#define HNSW_MAX_NBITS			8
+#define HNSW_DEFAULT_PQ_M		4
+#define HNSW_MIN_PQ_M			1
+#define HNSW_MAX_PQ_M			2000
+#define HNSW_DEFAULT_PQ_M       4
 /* Tuple types */
 #define HNSW_ELEMENT_TUPLE_TYPE  1
 #define HNSW_NEIGHBOR_TUPLE_TYPE 2
@@ -117,7 +124,7 @@ extern int	hnsw_lock_tranche_id;
 
 typedef struct HnswElementData HnswElementData;
 typedef struct HnswNeighborArray HnswNeighborArray;
-
+typedef struct HnswNeighbor_encodedArray HnswNeighbor_encodedArray;
 #define HnswPtrDeclare(type, relptrtype, ptrtype) \
 	relptr_declare(type, relptrtype); \
 	typedef union { type *ptr; relptrtype relptr; } ptrtype;
@@ -127,8 +134,19 @@ typedef struct HnswNeighborArray HnswNeighborArray;
 HnswPtrDeclare(HnswElementData, HnswElementRelptr, HnswElementPtr);
 HnswPtrDeclare(HnswNeighborArray, HnswNeighborArrayRelptr, HnswNeighborArrayPtr);
 HnswPtrDeclare(HnswNeighborArrayPtr, HnswNeighborsRelptr, HnswNeighborsPtr);
+HnswPtrDeclare(HnswNeighbor_encodedArray, HnswNeighbor_encodedRelptr, HnswNeighbor_encodedPtr);
 HnswPtrDeclare(char, DatumRelptr, DatumPtr);
 
+typedef struct Encode_Data
+{
+	uint8_t* data;
+	int length;
+}Encode_Data;
+struct HnswNeighbor_encodedArray
+{
+	int			length;
+	Encode_Data neighbors_encoded[FLEXIBLE_ARRAY_MEMBER];
+};
 struct HnswElementData
 {
 	HnswElementPtr next;
@@ -138,13 +156,16 @@ struct HnswElementData
 	uint8		deleted;
 	uint32		hash;
 	HnswNeighborsPtr neighbors;
+	HnswNeighbor_encodedPtr neighbors_encoded;
 	BlockNumber blkno;
 	OffsetNumber offno;
 	OffsetNumber neighborOffno;
 	BlockNumber neighborPage;
 	DatumPtr	value;
+	Encode_Data*    encoded_data;
 	LWLock		lock;
 };
+
 
 typedef HnswElementData * HnswElement;
 
@@ -162,6 +183,8 @@ struct HnswNeighborArray
 	HnswCandidate items[FLEXIBLE_ARRAY_MEMBER];
 };
 
+
+
 typedef struct HnswPairingHeapNode
 {
 	pairingheap_node ph_node;
@@ -175,6 +198,9 @@ typedef struct HnswOptions
 	int			m;				/* number of connections */
 	int			efConstruction; /* size of dynamic candidate list */
 	int         use_pq;         /*whether to use Product Quantization*/
+	int 		pq_m;
+	int 		nbits;
+	const char* pq_dist_file_name;
 }			HnswOptions;
 
 typedef struct HnswGraph
@@ -257,6 +283,10 @@ typedef struct HnswBuildState
 	int			m;
 	int			efConstruction;
 	int         use_pq;
+	int         pq_m;
+	int         nbits;
+	const char *pq_dist_file_name;
+	PQDist* pqdist;
 
 	/* Statistics */
 	double		indtuples;
@@ -282,6 +312,7 @@ typedef struct HnswBuildState
 	HnswLeader *hnswleader;
 	HnswShared *hnswshared;
 	char	   *hnswarea;
+	
 }			HnswBuildState;
 
 typedef struct HnswMetaPageData
@@ -292,10 +323,13 @@ typedef struct HnswMetaPageData
 	uint16		m;
 	uint16		efConstruction;
 	uint16      use_pq;
+	uint16      pq_m;
+	uint16      nbits;
 	BlockNumber entryBlkno;
 	OffsetNumber entryOffno;
 	int16		entryLevel;
 	BlockNumber insertPage;
+	const char* pq_dist_file_name;
 }			HnswMetaPageData;
 
 typedef HnswMetaPageData * HnswMetaPage;
@@ -378,6 +412,9 @@ typedef struct HnswVacuumState
 int			HnswGetM(Relation index);
 int			HnswGetEfConstruction(Relation index);
 int         HnswGetuse_pq(Relation index);
+int 	    HnswGetPqM(Relation index);
+int 	    HnswGetNbits(Relation index);
+const char* HnswGetPQDistFileName(Relation index);
 FmgrInfo   *HnswOptionalProcInfo(Relation index, uint16 procnum);
 Datum		HnswNormValue(const HnswTypeInfo * typeInfo, Oid collation, Datum value);
 bool		HnswCheckNorm(FmgrInfo *procinfo, Oid collation, Datum value);
@@ -388,7 +425,7 @@ List	   *HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation
 HnswElement HnswGetEntryPoint(Relation index);
 void		HnswGetMetaPageInfo(Relation index, int *m, HnswElement * entryPoint);
 void	   *HnswAlloc(HnswAllocator * allocator, Size size);
-HnswElement HnswInitElement(char *base, ItemPointer tid, int m, double ml, int maxLevel, HnswAllocator * alloc);
+HnswElement HnswInitElement(char *base, ItemPointer tid, int m, double ml, int maxLevel, int use_pq, HnswAllocator * alloc, PQDist* pqdist);
 HnswElement HnswInitElementFromBlock(BlockNumber blkno, OffsetNumber offno);
 void		HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, bool existing);
 HnswCandidate *HnswEntryCandidate(char *base, HnswElement em, Datum q, Relation rel, FmgrInfo *procinfo, Oid collation, bool loadVec);

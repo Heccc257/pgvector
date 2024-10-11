@@ -1,7 +1,13 @@
 #include "postgres.h"
 
 #include <math.h>
-
+#include "pq_dist.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <assert.h>
+#include <stdint.h>
+#include <string.h>
+#include "utils/elog.h"
 #include "access/generic_xlog.h"
 #include "catalog/pg_type.h"
 #include "catalog/pg_type_d.h"
@@ -13,7 +19,7 @@
 #include "utils/datum.h"
 #include "utils/memdebug.h"
 #include "utils/rel.h"
-
+#include "pq_dist.h"
 #if PG_VERSION_NUM >= 130000
 #include "common/hashfn.h"
 #else
@@ -134,6 +140,31 @@ int HnswGetuse_pq(Relation index)
 
 	return HNSW_DEFAULT_USE_PQ;
 }
+int HnswGetPqM(Relation index)
+{
+	HnswOptions *opts = (HnswOptions *) index->rd_options;
+
+	if (opts)
+		return opts->pq_m;
+	return HNSW_DEFAULT_PQ_M;
+}
+int HnswGetNbits(Relation index)
+{
+	HnswOptions *opts = (HnswOptions *) index->rd_options;
+
+	if (opts)
+		return opts->nbits;
+	return HNSW_DEFAULT_NBITS;
+}
+const char* HnswGetPQDistFileName(Relation index)
+{
+	HnswOptions *opts = (HnswOptions *) index->rd_options;
+    
+	if (opts){
+		opts->pq_dist_file_name = "/root/python_gist/encoded_data_120_4";
+		return opts->pq_dist_file_name;
+	}
+	return NULL;
 
 /*
  * Get the size of the dynamic candidate list in the index
@@ -246,8 +277,10 @@ HnswAlloc(HnswAllocator * allocator, Size size)
  * Allocate an element
  */
 HnswElement
-HnswInitElement(char *base, ItemPointer heaptid, int m, double ml, int maxLevel, HnswAllocator * allocator)
+HnswInitElement(char *base, ItemPointer heaptid, int m, double ml, int maxLevel, int use_pq, HnswAllocator * allocator, PQDist* pqdist)
 {
+
+    
 	HnswElement element = HnswAlloc(allocator, sizeof(HnswElementData));
 
 	int			level = (int) (-log(RandomDouble()) * ml);
@@ -265,6 +298,16 @@ HnswInitElement(char *base, ItemPointer heaptid, int m, double ml, int maxLevel,
 	HnswInitNeighbors(base, element, m, allocator);
 
 	HnswPtrStore(base, element->value, (Pointer) NULL);
+    //elog(INFO, "开始导入encode data\n");
+	if(use_pq){
+		
+		element->encoded_data = (Encode_Data*)HnswAlloc(allocator, sizeof(Encode_Data));
+		element->encoded_data->length = pqdist->code_nums;
+		element->encoded_data = pqdist->codes + (heaptid->ip_posid - 1) * pqdist->code_nums / sizeof(uint8_t);
+
+	}
+	
+    
 
 	return element;
 }
@@ -1352,3 +1395,74 @@ hnsw_sparsevec_support(PG_FUNCTION_ARGS)
 
 	PG_RETURN_POINTER(&typeInfo);
 };
+
+void pqdist_init(PQDist* pqdist, int _d, int _m, int _nbits)
+{
+    pqdist->d = _d;
+    pqdist->m = _m;
+    pqdist->nbits = _nbits;
+    pqdist->code_nums = 1 << _nbits;
+    pqdist->d_pq = _d / _m;
+    pqdist->codes = (uint8_t*)malloc(sizeof(uint8_t) * _m * _nbits);
+    pqdist->centroids = (float*)malloc(sizeof(float) * _m * _d);
+    pqdist->pq_dist_cache_data = (float*)malloc(sizeof(float) * _m * pqdist->code_nums);
+}
+
+void PQDist_load(PQDist* pq, const char* filename) {
+    FILE* fin = fopen(filename, "rb");
+    if (fin == NULL) {
+        //printf("open %s fail\n", filename);
+		elog(ERROR, "open %s fail", filename);
+        exit(-1);
+    }
+
+    int N;
+    fread(&N, sizeof(int), 1, fin);
+    fread(&pq->d, sizeof(int), 1, fin);
+    fread(&pq->m, sizeof(int), 1, fin);
+    fread(&pq->nbits, sizeof(int), 1, fin);
+    elog(INFO, "load: %d %d %d %d", N, pq->d, pq->m, pq->nbits);
+    assert(8 % pq->nbits == 0);
+    pq->code_nums = 1 << pq->nbits;
+
+    pq->d_pq = pq->d / pq->m;
+    pq->table_size = pq->m * pq->code_nums;
+
+
+    //if (pq->pq_dist_cache_data != NULL) {
+    //    free(pq->pq_dist_cache_data);
+    //}
+    //pq->pq_dist_cache_data = (float*)aligned_alloc(64, sizeof(float) * pq->table_size);
+    pq->pq_dist_cache_data = (float*)malloc(sizeof(float) * pq->table_size);
+    //elog(INFO, "table_size: %d\n", pq->table_size);
+    size_t codes_size = N / 8 * pq->m * pq->nbits;
+    pq->codes = (uint8_t*)malloc(codes_size);
+    if (pq->codes == NULL) {
+        //printf("Memory allocation failed for codes\n");
+		elog(ERROR, "Memory allocation failed for codes");
+        exit(-1);
+    }
+    fread(pq->codes, sizeof(uint8_t), codes_size, fin);
+
+    //elog(INFO, "codes_size: %d\n", codes_size);
+    pq->centroids = (float*)malloc(sizeof(float) * pq->code_nums * pq->d);
+    if (pq->centroids == NULL) {
+        elog(ERROR, "Memory allocation failed for centroids");
+        exit(-1);
+    }
+    fread(pq->centroids, sizeof(float), pq->code_nums * pq->d, fin);
+    fclose(fin);
+}
+
+void PQDist_free(PQDist* pq) {
+    if (pq->codes != NULL) {
+        free(pq->codes);
+    }
+    if (pq->centroids != NULL) {
+        free(pq->centroids);
+    }
+    if (pq->pq_dist_cache_data != NULL) {
+        free(pq->pq_dist_cache_data);
+    }
+}
+

@@ -71,9 +71,9 @@
 #include "utils/wait_event.h"
 #endif
 
-#define PARALLEL_KEY_HNSW_SHARED		UINT64CONST(0xA000000000000001)
-#define PARALLEL_KEY_HNSW_AREA			UINT64CONST(0xA000000000000002)
-#define PARALLEL_KEY_QUERY_TEXT			UINT64CONST(0xA000000000000003)
+#define PARALLEL_KEY_HNSW_SHARED UINT64CONST(0xA000000000000001)
+#define PARALLEL_KEY_HNSW_AREA UINT64CONST(0xA000000000000002)
+#define PARALLEL_KEY_QUERY_TEXT UINT64CONST(0xA000000000000003)
 
 #if PG_VERSION_NUM < 130000
 #define GENERATIONCHUNK_RAWSIZE (SIZEOF_SIZE_T + SIZEOF_VOID_P * 2)
@@ -83,12 +83,12 @@
  * Create the metapage
  */
 static void
-CreateMetaPage(HnswBuildState * buildstate)
+CreateMetaPage(HnswBuildState *buildstate)
 {
-	Relation	index = buildstate->index;
-	ForkNumber	forkNum = buildstate->forkNum;
-	Buffer		buf;
-	Page		page;
+	Relation index = buildstate->index;
+	ForkNumber forkNum = buildstate->forkNum;
+	Buffer buf;
+	Page page;
 	HnswMetaPage metap;
 
 	buf = HnswNewBuffer(index, forkNum);
@@ -106,8 +106,8 @@ CreateMetaPage(HnswBuildState * buildstate)
 	metap->entryOffno = InvalidOffsetNumber;
 	metap->entryLevel = -1;
 	metap->insertPage = InvalidBlockNumber;
-	((PageHeader) page)->pd_lower =
-		((char *) metap + sizeof(HnswMetaPageData)) - (char *) page;
+	((PageHeader)page)->pd_lower =
+		((char *)metap + sizeof(HnswMetaPageData)) - (char *)page;
 
 	MarkBufferDirty(buf);
 	UnlockReleaseBuffer(buf);
@@ -120,7 +120,7 @@ static void
 HnswBuildAppendPage(Relation index, Buffer *buf, Page *page, ForkNumber forkNum)
 {
 	/* Add a new page */
-	Buffer		newbuf = HnswNewBuffer(index, forkNum);
+	Buffer newbuf = HnswNewBuffer(index, forkNum);
 
 	/* Update previous page */
 	HnswPageGetOpaque(*page)->nextblkno = BufferGetBlockNumber(newbuf);
@@ -145,19 +145,19 @@ HnswBuildAppendPage(Relation index, Buffer *buf, Page *page, ForkNumber forkNum)
  * Create graph pages
  */
 static void
-CreateGraphPages(HnswBuildState * buildstate)
+CreateGraphPages(HnswBuildState *buildstate)
 {
-	Relation	index = buildstate->index;
-	ForkNumber	forkNum = buildstate->forkNum;
-	Size		maxSize;
+	Relation index = buildstate->index;
+	ForkNumber forkNum = buildstate->forkNum;
+	Size maxSize;
 	HnswElementTuple etup;
 	HnswNeighborTuple ntup;
 	BlockNumber insertPage;
 	HnswElement entryPoint;
-	Buffer		buf;
-	Page		page;
+	Buffer buf;
+	Page page;
 	HnswElementPtr iter = buildstate->graph->head;
-	char	   *base = buildstate->hnswarea;
+	char *base = buildstate->hnswarea;
 
 	/* Calculate sizes */
 	maxSize = HNSW_MAX_SIZE;
@@ -174,10 +174,10 @@ CreateGraphPages(HnswBuildState * buildstate)
 	while (!HnswPtrIsNull(base, iter))
 	{
 		HnswElement element = HnswPtrAccess(base, iter);
-		Size		etupSize;
-		Size		ntupSize;
-		Size		combinedSize;
-		Pointer		valuePtr = HnswPtrAccess(base, element->value);
+		Size etupSize;
+		Size ntupSize;
+		Size combinedSize;
+		Pointer valuePtr = HnswPtrAccess(base, element->value);
 
 		/* Update iterator */
 		iter = element->next;
@@ -217,7 +217,7 @@ CreateGraphPages(HnswBuildState * buildstate)
 		ItemPointerSet(&etup->neighbortid, element->neighborPage, element->neighborOffno);
 
 		/* Add element */
-		if (PageAddItem(page, (Item) etup, etupSize, InvalidOffsetNumber, false, false) != element->offno)
+		if (PageAddItem(page, (Item)etup, etupSize, InvalidOffsetNumber, false, false) != element->offno)
 			elog(ERROR, "failed to add index item to \"%s\"", RelationGetRelationName(index));
 
 		/* Add new page if needed */
@@ -225,7 +225,7 @@ CreateGraphPages(HnswBuildState * buildstate)
 			HnswBuildAppendPage(index, &buf, &page, forkNum);
 
 		/* Add placeholder for neighbors */
-		if (PageAddItem(page, (Item) ntup, ntupSize, InvalidOffsetNumber, false, false) != element->neighborOffno)
+		if (PageAddItem(page, (Item)ntup, ntupSize, InvalidOffsetNumber, false, false) != element->neighborOffno)
 			elog(ERROR, "failed to add index item to \"%s\"", RelationGetRelationName(index));
 	}
 
@@ -246,13 +246,13 @@ CreateGraphPages(HnswBuildState * buildstate)
  * Write neighbor tuples
  */
 static void
-WriteNeighborTuples(HnswBuildState * buildstate)
+WriteNeighborTuples(HnswBuildState *buildstate)
 {
-	Relation	index = buildstate->index;
-	ForkNumber	forkNum = buildstate->forkNum;
-	int			m = buildstate->m;
+	Relation index = buildstate->index;
+	ForkNumber forkNum = buildstate->forkNum;
+	int m = buildstate->m;
 	HnswElementPtr iter = buildstate->graph->head;
-	char	   *base = buildstate->hnswarea;
+	char *base = buildstate->hnswarea;
 	HnswNeighborTuple ntup;
 
 	/* Allocate once */
@@ -261,9 +261,9 @@ WriteNeighborTuples(HnswBuildState * buildstate)
 	while (!HnswPtrIsNull(base, iter))
 	{
 		HnswElement element = HnswPtrAccess(base, iter);
-		Buffer		buf;
-		Page		page;
-		Size		ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(element->level, m);
+		Buffer buf;
+		Page page;
+		Size ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(element->level, m);
 
 		/* Update iterator */
 		iter = element->next;
@@ -281,7 +281,7 @@ WriteNeighborTuples(HnswBuildState * buildstate)
 
 		HnswSetNeighborTuple(base, ntup, element, m);
 
-		if (!PageIndexTupleOverwrite(page, element->neighborOffno, (Item) ntup, ntupSize))
+		if (!PageIndexTupleOverwrite(page, element->neighborOffno, (Item)ntup, ntupSize))
 			elog(ERROR, "failed to add index item to \"%s\"", RelationGetRelationName(index));
 
 		/* Commit */
@@ -296,7 +296,7 @@ WriteNeighborTuples(HnswBuildState * buildstate)
  * Flush pages
  */
 static void
-FlushPages(HnswBuildState * buildstate)
+FlushPages(HnswBuildState *buildstate)
 {
 #ifdef HNSW_MEMORY
 	elog(INFO, "memory: %zu MB", buildstate->graph->memoryUsed / (1024 * 1024));
@@ -338,13 +338,13 @@ static bool
 FindDuplicateInMemory(char *base, HnswElement element)
 {
 	HnswNeighborArray *neighbors = HnswGetNeighbors(base, element, 0);
-	Datum		value = HnswGetValue(base, element);
+	Datum value = HnswGetValue(base, element);
 
 	for (int i = 0; i < neighbors->length; i++)
 	{
 		HnswCandidate *neighbor = &neighbors->items[i];
 		HnswElement neighborElement = HnswPtrAccess(base, neighbor->element);
-		Datum		neighborValue = HnswGetValue(base, neighborElement);
+		Datum neighborValue = HnswGetValue(base, neighborElement);
 
 		/* Exit early since ordered by distance */
 		if (!datumIsEqual(value, neighborValue, false, -1))
@@ -362,7 +362,7 @@ FindDuplicateInMemory(char *base, HnswElement element)
  * Add to element list
  */
 static void
-AddElementInMemory(char *base, HnswGraph * graph, HnswElement element)
+AddElementInMemory(char *base, HnswGraph *graph, HnswElement element)
 {
 	SpinLockAcquire(&graph->lock);
 	element->next = graph->head;
@@ -378,8 +378,8 @@ UpdateNeighborsInMemory(char *base, FmgrInfo *procinfo, Oid collation, HnswEleme
 {
 	for (int lc = e->level; lc >= 0; lc--)
 	{
-		int			lm = HnswGetLayerM(m, lc);
-		Size		neighborsSize = HNSW_NEIGHBOR_ARRAY_SIZE(lm);
+		int lm = HnswGetLayerM(m, lc);
+		Size neighborsSize = HNSW_NEIGHBOR_ARRAY_SIZE(lm);
 		HnswNeighborArray *neighbors = palloc(neighborsSize);
 
 		/* Copy neighbors to local memory */
@@ -406,10 +406,10 @@ UpdateNeighborsInMemory(char *base, FmgrInfo *procinfo, Oid collation, HnswEleme
  * Update graph in memory
  */
 static void
-UpdateGraphInMemory(FmgrInfo *procinfo, Oid collation, HnswElement element, int m, int efConstruction, HnswElement entryPoint, HnswBuildState * buildstate)
+UpdateGraphInMemory(FmgrInfo *procinfo, Oid collation, HnswElement element, int m, int efConstruction, HnswElement entryPoint, HnswBuildState *buildstate)
 {
-	HnswGraph  *graph = buildstate->graph;
-	char	   *base = buildstate->hnswarea;
+	HnswGraph *graph = buildstate->graph;
+	char *base = buildstate->hnswarea;
 
 	/* Look for duplicate */
 	if (FindDuplicateInMemory(base, element))
@@ -430,17 +430,17 @@ UpdateGraphInMemory(FmgrInfo *procinfo, Oid collation, HnswElement element, int 
  * Insert tuple in memory
  */
 static void
-InsertTupleInMemory(HnswBuildState * buildstate, HnswElement element)
+InsertTupleInMemory(HnswBuildState *buildstate, HnswElement element)
 {
-	FmgrInfo   *procinfo = buildstate->procinfo;
-	Oid			collation = buildstate->collation;
-	HnswGraph  *graph = buildstate->graph;
+	FmgrInfo *procinfo = buildstate->procinfo;
+	Oid collation = buildstate->collation;
+	HnswGraph *graph = buildstate->graph;
 	HnswElement entryPoint;
-	LWLock	   *entryLock = &graph->entryLock;
-	LWLock	   *entryWaitLock = &graph->entryWaitLock;
-	int			efConstruction = buildstate->efConstruction;
-	int			m = buildstate->m;
-	char	   *base = buildstate->hnswarea;
+	LWLock *entryLock = &graph->entryLock;
+	LWLock *entryWaitLock = &graph->entryWaitLock;
+	int efConstruction = buildstate->efConstruction;
+	int m = buildstate->m;
+	char *base = buildstate->hnswarea;
 
 	/* Wait if another process needs exclusive lock on entry lock */
 	LWLockAcquire(entryWaitLock, LW_EXCLUSIVE);
@@ -479,19 +479,20 @@ InsertTupleInMemory(HnswBuildState * buildstate, HnswElement element)
  * Insert tuple
  */
 static bool
-InsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heaptid, HnswBuildState * buildstate)
+InsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heaptid, HnswBuildState *buildstate)
 {
-	const		HnswTypeInfo *typeInfo = buildstate->typeInfo;
-	HnswGraph  *graph = buildstate->graph;
+	//elog(INFO, "begin to insert tuple\n");
+	const HnswTypeInfo *typeInfo = buildstate->typeInfo;
+	HnswGraph *graph = buildstate->graph;
 	HnswElement element;
 	HnswAllocator *allocator = &buildstate->allocator;
-	Size		valueSize;
-	Pointer		valuePtr;
-	LWLock	   *flushLock = &graph->flushLock;
-	char	   *base = buildstate->hnswarea;
+	Size valueSize;
+	Pointer valuePtr;
+	LWLock *flushLock = &graph->flushLock;
+	char *base = buildstate->hnswarea;
 
 	/* Detoast once for all calls */
-	Datum		value = PointerGetDatum(PG_DETOAST_DATUM(values[0]));
+	Datum value = PointerGetDatum(PG_DETOAST_DATUM(values[0]));
 
 	/* Check value */
 	if (typeInfo->checkValue != NULL)
@@ -540,7 +541,7 @@ InsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heaptid, Hn
 		if (!graph->flushed)
 		{
 			ereport(NOTICE,
-					(errmsg("hnsw graph no longer fits into maintenance_work_mem after " INT64_FORMAT " tuples", (int64) graph->indtuples),
+					(errmsg("hnsw graph no longer fits into maintenance_work_mem after " INT64_FORMAT " tuples", (int64)graph->indtuples),
 					 errdetail("Building will take significantly more time."),
 					 errhint("Increase maintenance_work_mem to speed up builds.")));
 
@@ -553,7 +554,9 @@ InsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heaptid, Hn
 	}
 
 	/* Ok, we can proceed to allocate the element */
-	element = HnswInitElement(base, heaptid, buildstate->m, buildstate->ml, buildstate->maxLevel, allocator);
+	//elog(INFO, "pqdist loaded\n");
+	//elog(INFO, "begin to insert element\n");
+	element = HnswInitElement(base, heaptid, buildstate->m, buildstate->ml, buildstate->maxLevel, buildstate->use_pq, allocator, buildstate->pqdist);
 	valuePtr = HnswAlloc(allocator, valueSize);
 
 	/*
@@ -586,8 +589,8 @@ static void
 BuildCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
 			  bool *isnull, bool tupleIsAlive, void *state)
 {
-	HnswBuildState *buildstate = (HnswBuildState *) state;
-	HnswGraph  *graph = buildstate->graph;
+	HnswBuildState *buildstate = (HnswBuildState *)state;
+	HnswGraph *graph = buildstate->graph;
 	MemoryContext oldCtx;
 
 #if PG_VERSION_NUM < 130000
@@ -619,13 +622,13 @@ BuildCallback(Relation index, CALLBACK_ITEM_POINTER, Datum *values,
  * Initialize the graph
  */
 static void
-InitGraph(HnswGraph * graph, char *base, long memoryTotal)
+InitGraph(HnswGraph *graph, char *base, long memoryTotal)
 {
 	/* Initialize the lock tranche if needed */
 	HnswInitLockTranche();
 
-	HnswPtrStore(base, graph->head, (HnswElement) NULL);
-	HnswPtrStore(base, graph->entryPoint, (HnswElement) NULL);
+	HnswPtrStore(base, graph->head, (HnswElement)NULL);
+	HnswPtrStore(base, graph->entryPoint, (HnswElement)NULL);
 	graph->memoryUsed = 0;
 	graph->memoryTotal = memoryTotal;
 	graph->flushed = false;
@@ -641,7 +644,7 @@ InitGraph(HnswGraph * graph, char *base, long memoryTotal)
  * Initialize an allocator
  */
 static void
-InitAllocator(HnswAllocator * allocator, void *(*alloc) (Size size, void *state), void *state)
+InitAllocator(HnswAllocator *allocator, void *(*alloc)(Size size, void *state), void *state)
 {
 	allocator->alloc = alloc;
 	allocator->state = state;
@@ -653,8 +656,8 @@ InitAllocator(HnswAllocator * allocator, void *(*alloc) (Size size, void *state)
 static void *
 HnswMemoryContextAlloc(Size size, void *state)
 {
-	HnswBuildState *buildstate = (HnswBuildState *) state;
-	void	   *chunk = MemoryContextAlloc(buildstate->graphCtx, size);
+	HnswBuildState *buildstate = (HnswBuildState *)state;
+	void *chunk = MemoryContextAlloc(buildstate->graphCtx, size);
 
 #if PG_VERSION_NUM >= 130000
 	buildstate->graphData.memoryUsed = MemoryContextMemAllocated(buildstate->graphCtx, false);
@@ -671,8 +674,8 @@ HnswMemoryContextAlloc(Size size, void *state)
 static void *
 HnswSharedMemoryAlloc(Size size, void *state)
 {
-	HnswBuildState *buildstate = (HnswBuildState *) state;
-	void	   *chunk = buildstate->hnswarea + buildstate->graph->memoryUsed;
+	HnswBuildState *buildstate = (HnswBuildState *)state;
+	void *chunk = buildstate->hnswarea + buildstate->graph->memoryUsed;
 
 	buildstate->graph->memoryUsed += MAXALIGN(size);
 	return chunk;
@@ -682,7 +685,7 @@ HnswSharedMemoryAlloc(Size size, void *state)
  * Initialize the build state
  */
 static void
-InitBuildState(HnswBuildState * buildstate, Relation heap, Relation index, IndexInfo *indexInfo, ForkNumber forkNum)
+InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexInfo *indexInfo, ForkNumber forkNum)
 {
 	buildstate->heap = heap;
 	buildstate->index = index;
@@ -693,6 +696,17 @@ InitBuildState(HnswBuildState * buildstate, Relation heap, Relation index, Index
 	buildstate->m = HnswGetM(index);
 	buildstate->efConstruction = HnswGetEfConstruction(index);
 	buildstate->use_pq = HnswGetuse_pq(index);
+	if (buildstate->use_pq)
+	{
+		buildstate->pq_m = HnswGetPqM(index);
+		buildstate->nbits = HnswGetNbits(index);
+		elog(INFO, "pq_m: %d", buildstate->pq_m);
+		elog(INFO, "nbits: %d", buildstate->nbits);
+		buildstate->pq_dist_file_name = HnswGetPQDistFileName(index);
+		elog(INFO, "pq_dist_file_name: %s", buildstate->pq_dist_file_name);
+		PQDist_load(buildstate->pqdist, buildstate->pq_dist_file_name);
+		elog(INFO, "pqdist loaded");
+	};
 	buildstate->dimensions = TupleDescAttr(index->rd_att, 0)->atttypmod;
 
 	/* Disallow varbit since require fixed dimensions */
@@ -737,13 +751,14 @@ InitBuildState(HnswBuildState * buildstate, Relation heap, Relation index, Index
 	buildstate->hnswleader = NULL;
 	buildstate->hnswshared = NULL;
 	buildstate->hnswarea = NULL;
+	//elog(INFO, "buildstate initialized");
 }
 
 /*
  * Free resources
  */
 static void
-FreeBuildState(HnswBuildState * buildstate)
+FreeBuildState(HnswBuildState *buildstate)
 {
 	MemoryContextDelete(buildstate->graphCtx);
 	MemoryContextDelete(buildstate->tmpCtx);
@@ -753,11 +768,11 @@ FreeBuildState(HnswBuildState * buildstate)
  * Within leader, wait for end of heap scan
  */
 static double
-ParallelHeapScan(HnswBuildState * buildstate)
+ParallelHeapScan(HnswBuildState *buildstate)
 {
 	HnswShared *hnswshared = buildstate->hnswleader->hnswshared;
-	int			nparticipanttuplesorts;
-	double		reltuples;
+	int nparticipanttuplesorts;
+	double reltuples;
 
 	nparticipanttuplesorts = buildstate->hnswleader->nparticipanttuplesorts;
 	for (;;)
@@ -786,12 +801,12 @@ ParallelHeapScan(HnswBuildState * buildstate)
  * Perform a worker's portion of a parallel insert
  */
 static void
-HnswParallelScanAndInsert(Relation heapRel, Relation indexRel, HnswShared * hnswshared, char *hnswarea, bool progress)
+HnswParallelScanAndInsert(Relation heapRel, Relation indexRel, HnswShared *hnswshared, char *hnswarea, bool progress)
 {
 	HnswBuildState buildstate;
 	TableScanDesc scan;
-	double		reltuples;
-	IndexInfo  *indexInfo;
+	double reltuples;
+	IndexInfo *indexInfo;
 
 	/* Join parallel scan */
 	indexInfo = BuildIndexInfo(indexRel);
@@ -804,7 +819,7 @@ HnswParallelScanAndInsert(Relation heapRel, Relation indexRel, HnswShared * hnsw
 									ParallelTableScanFromHnswShared(hnswshared));
 	reltuples = table_index_build_scan(heapRel, indexRel, indexInfo,
 									   true, progress, BuildCallback,
-									   (void *) &buildstate, scan);
+									   (void *)&buildstate, scan);
 
 	/* Record statistics */
 	SpinLockAcquire(&hnswshared->mutex);
@@ -814,9 +829,9 @@ HnswParallelScanAndInsert(Relation heapRel, Relation indexRel, HnswShared * hnsw
 
 	/* Log statistics */
 	if (progress)
-		ereport(DEBUG1, (errmsg("leader processed " INT64_FORMAT " tuples", (int64) reltuples)));
+		ereport(DEBUG1, (errmsg("leader processed " INT64_FORMAT " tuples", (int64)reltuples)));
 	else
-		ereport(DEBUG1, (errmsg("worker processed " INT64_FORMAT " tuples", (int64) reltuples)));
+		ereport(DEBUG1, (errmsg("worker processed " INT64_FORMAT " tuples", (int64)reltuples)));
 
 	/* Notify leader */
 	ConditionVariableSignal(&hnswshared->workersdonecv);
@@ -827,16 +842,15 @@ HnswParallelScanAndInsert(Relation heapRel, Relation indexRel, HnswShared * hnsw
 /*
  * Perform work within a launched parallel process
  */
-void
-HnswParallelBuildMain(dsm_segment *seg, shm_toc *toc)
+void HnswParallelBuildMain(dsm_segment *seg, shm_toc *toc)
 {
-	char	   *sharedquery;
+	char *sharedquery;
 	HnswShared *hnswshared;
-	char	   *hnswarea;
-	Relation	heapRel;
-	Relation	indexRel;
-	LOCKMODE	heapLockmode;
-	LOCKMODE	indexLockmode;
+	char *hnswarea;
+	Relation heapRel;
+	Relation indexRel;
+	LOCKMODE heapLockmode;
+	LOCKMODE indexLockmode;
 
 	/* Set debug_query_string for individual workers first */
 	sharedquery = shm_toc_lookup(toc, PARALLEL_KEY_QUERY_TEXT, true);
@@ -878,7 +892,7 @@ HnswParallelBuildMain(dsm_segment *seg, shm_toc *toc)
  * End parallel build
  */
 static void
-HnswEndParallel(HnswLeader * hnswleader)
+HnswEndParallel(HnswLeader *hnswleader)
 {
 	/* Shutdown worker processes */
 	WaitForParallelWorkersToFinish(hnswleader->pcxt);
@@ -903,7 +917,7 @@ ParallelEstimateShared(Relation heap, Snapshot snapshot)
  * Within leader, participate as a parallel worker
  */
 static void
-HnswLeaderParticipateAsWorker(HnswBuildState * buildstate)
+HnswLeaderParticipateAsWorker(HnswBuildState *buildstate)
 {
 	HnswLeader *hnswleader = buildstate->hnswleader;
 
@@ -915,18 +929,18 @@ HnswLeaderParticipateAsWorker(HnswBuildState * buildstate)
  * Begin parallel build
  */
 static void
-HnswBeginParallel(HnswBuildState * buildstate, bool isconcurrent, int request)
+HnswBeginParallel(HnswBuildState *buildstate, bool isconcurrent, int request)
 {
 	ParallelContext *pcxt;
-	Snapshot	snapshot;
-	Size		esthnswshared;
-	Size		esthnswarea;
-	Size		estother;
+	Snapshot snapshot;
+	Size esthnswshared;
+	Size esthnswarea;
+	Size estother;
 	HnswShared *hnswshared;
-	char	   *hnswarea;
-	HnswLeader *hnswleader = (HnswLeader *) palloc0(sizeof(HnswLeader));
-	bool		leaderparticipates = true;
-	int			querylen;
+	char *hnswarea;
+	HnswLeader *hnswleader = (HnswLeader *)palloc0(sizeof(HnswLeader));
+	bool leaderparticipates = true;
+	int querylen;
 
 #ifdef DISABLE_LEADER_PARTICIPATION
 	leaderparticipates = false;
@@ -966,7 +980,7 @@ HnswBeginParallel(HnswBuildState * buildstate, bool isconcurrent, int request)
 		shm_toc_estimate_keys(&pcxt->estimator, 1);
 	}
 	else
-		querylen = 0;			/* keep compiler quiet */
+		querylen = 0; /* keep compiler quiet */
 
 	/* Everyone's had a chance to ask for space, so now create the DSM */
 	InitializeParallelDSM(pcxt);
@@ -982,7 +996,7 @@ HnswBeginParallel(HnswBuildState * buildstate, bool isconcurrent, int request)
 	}
 
 	/* Store shared build state, for which we reserved space */
-	hnswshared = (HnswShared *) shm_toc_allocate(pcxt->toc, esthnswshared);
+	hnswshared = (HnswShared *)shm_toc_allocate(pcxt->toc, esthnswshared);
 	/* Initialize immutable state */
 	hnswshared->heaprelid = RelationGetRelid(buildstate->heap);
 	hnswshared->indexrelid = RelationGetRelid(buildstate->index);
@@ -996,7 +1010,7 @@ HnswBeginParallel(HnswBuildState * buildstate, bool isconcurrent, int request)
 								  ParallelTableScanFromHnswShared(hnswshared),
 								  snapshot);
 
-	hnswarea = (char *) shm_toc_allocate(pcxt->toc, esthnswarea);
+	hnswarea = (char *)shm_toc_allocate(pcxt->toc, esthnswarea);
 	/* Report less than allocated so never fails */
 	InitGraph(&hnswshared->graphData, hnswarea, esthnswarea - 1024 * 1024);
 
@@ -1014,9 +1028,9 @@ HnswBeginParallel(HnswBuildState * buildstate, bool isconcurrent, int request)
 	/* Store query string for workers */
 	if (debug_query_string)
 	{
-		char	   *sharedquery;
+		char *sharedquery;
 
-		sharedquery = (char *) shm_toc_allocate(pcxt->toc, querylen + 1);
+		sharedquery = (char *)shm_toc_allocate(pcxt->toc, querylen + 1);
 		memcpy(sharedquery, debug_query_string, querylen + 1);
 		shm_toc_insert(pcxt->toc, PARALLEL_KEY_QUERY_TEXT, sharedquery);
 	}
@@ -1058,7 +1072,7 @@ HnswBeginParallel(HnswBuildState * buildstate, bool isconcurrent, int request)
 static int
 ComputeParallelWorkers(Relation heap, Relation index)
 {
-	int			parallel_workers;
+	int parallel_workers;
 
 	/* Make sure it's safe to use parallel workers */
 	parallel_workers = plan_create_index_workers(RelationGetRelid(heap), RelationGetRelid(index));
@@ -1077,9 +1091,9 @@ ComputeParallelWorkers(Relation heap, Relation index)
  * Build graph
  */
 static void
-BuildGraph(HnswBuildState * buildstate, ForkNumber forkNum)
+BuildGraph(HnswBuildState *buildstate, ForkNumber forkNum)
 {
-	int			parallel_workers = 0;
+	int parallel_workers = 0;
 
 	pgstat_progress_update_param(PROGRESS_CREATEIDX_SUBPHASE, PROGRESS_HNSW_PHASE_LOAD);
 
@@ -1098,7 +1112,7 @@ BuildGraph(HnswBuildState * buildstate, ForkNumber forkNum)
 			buildstate->reltuples = ParallelHeapScan(buildstate);
 		else
 			buildstate->reltuples = table_index_build_scan(buildstate->heap, buildstate->index, buildstate->indexInfo,
-														   true, true, BuildCallback, (void *) buildstate, NULL);
+														   true, true, BuildCallback, (void *)buildstate, NULL);
 
 		buildstate->indtuples = buildstate->graph->indtuples;
 	}
@@ -1117,7 +1131,7 @@ BuildGraph(HnswBuildState * buildstate, ForkNumber forkNum)
  */
 static void
 BuildIndex(Relation heap, Relation index, IndexInfo *indexInfo,
-		   HnswBuildState * buildstate, ForkNumber forkNum)
+		   HnswBuildState *buildstate, ForkNumber forkNum)
 {
 #ifdef HNSW_MEMORY
 	SeedRandom(42);
@@ -1144,7 +1158,7 @@ hnswbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 
 	BuildIndex(heap, index, indexInfo, &buildstate, MAIN_FORKNUM);
 
-	result = (IndexBuildResult *) palloc(sizeof(IndexBuildResult));
+	result = (IndexBuildResult *)palloc(sizeof(IndexBuildResult));
 	result->heap_tuples = buildstate.reltuples;
 	result->index_tuples = buildstate.indtuples;
 
@@ -1154,10 +1168,9 @@ hnswbuild(Relation heap, Relation index, IndexInfo *indexInfo)
 /*
  * Build the index for an unlogged table
  */
-void
-hnswbuildempty(Relation index)
+void hnswbuildempty(Relation index)
 {
-	IndexInfo  *indexInfo = BuildIndexInfo(index);
+	IndexInfo *indexInfo = BuildIndexInfo(index);
 	HnswBuildState buildstate;
 
 	BuildIndex(NULL, index, indexInfo, &buildstate, INIT_FORKNUM);
