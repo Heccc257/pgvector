@@ -19,7 +19,9 @@
 #include "utils/datum.h"
 #include "utils/memdebug.h"
 #include "utils/rel.h"
+#include "utils/elog.h"
 #include "pq_dist.h"
+#include <immintrin.h>
 #if PG_VERSION_NUM >= 130000
 #include "common/hashfn.h"
 #else
@@ -131,8 +133,10 @@ HnswGetM(Relation index)
 
 	return HNSW_DEFAULT_M;
 }
-int HnswGetuse_pq(Relation index)
+int HnswGetUsePQ(Relation index)
 {
+	if(index == NULL)
+	return 0;
 	HnswOptions *opts = (HnswOptions *) index->rd_options;
 
 	if (opts)
@@ -161,10 +165,11 @@ const char* HnswGetPQDistFileName(Relation index)
 	HnswOptions *opts = (HnswOptions *) index->rd_options;
     
 	if (opts){
-		opts->pq_dist_file_name = "/root/python_gist/encoded_data_120_4";
+		opts->pq_dist_file_name = "/root/python_gist/encoded_data_toy";
 		return opts->pq_dist_file_name;
 	}
 	return NULL;
+}
 
 /*
  * Get the size of the dynamic candidate list in the index
@@ -178,6 +183,25 @@ HnswGetEfConstruction(Relation index)
 		return opts->efConstruction;
 
 	return HNSW_DEFAULT_EF_CONSTRUCTION;
+}
+PQDist* HnswGetPQDist(Relation index)
+{
+	if(index == NULL)
+	return NULL;
+	HnswOptions *opts = (HnswOptions *) index->rd_options;
+	
+	if (opts){
+		return opts->pqdist;
+	}
+	return NULL;
+}
+void HnswSetPQDist(Relation index, PQDist* pqdist)
+{
+	HnswOptions *opts = (HnswOptions *) index->rd_options;
+	
+	if (opts){
+		opts->pqdist = pqdist;
+	}
 }
 
 /*
@@ -303,7 +327,7 @@ HnswInitElement(char *base, ItemPointer heaptid, int m, double ml, int maxLevel,
 		
 		element->encoded_data = (Encode_Data*)HnswAlloc(allocator, sizeof(Encode_Data));
 		element->encoded_data->length = pqdist->code_nums;
-		element->encoded_data = pqdist->codes + (heaptid->ip_posid - 1) * pqdist->code_nums / sizeof(uint8_t);
+		element->encoded_data->data = pqdist->codes + (heaptid->ip_posid - 1) * pqdist->code_nums / sizeof(uint8_t);
 
 	}
 	
@@ -635,25 +659,51 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
  * Get the distance for a candidate
  */
 static float
-GetCandidateDistance(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo, Oid collation)
+GetCandidateDistance(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo, Oid collation, bool use_pq, PQDist* pqdist)
+{
+	elog(INFO, "GetCandidateDistance");
+	HnswElement hce = HnswPtrAccess(base, hc->element);
+	Datum		value = HnswGetValue(base, hce);
+    if(!use_pq){
+		elog(INFO, "not using pq distance");
+		return DatumGetFloat8(FunctionCall2Coll(procinfo, collation, q, value));
+	}
+	assert(pqdist);
+	float distance = 0;
+
+	Encode_Data* encode_data = hce->encoded_data;
+	distance = calc_dist_pq_loaded_simd(pqdist, hce->heaptids[0].ip_posid - 1);
+	elog(INFO, "distance: %f", distance);
+	return distance;
+
+}
+/* static float 
+GetCandidateDistancePQ(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo, Oid collation, PQDist* pqdist)
 {
 	HnswElement hce = HnswPtrAccess(base, hc->element);
 	Datum		value = HnswGetValue(base, hce);
+	float distance = 0;
+	assert(pqdist);
 
-	return DatumGetFloat8(FunctionCall2Coll(procinfo, collation, q, value));
-}
-
+	Encode_Data* encode_data = hce->encoded_data;
+	distance = calc_dist_pq_loaded_simd(encode_data->data, hce->heaptids[0].ip_posid - 1);
+	
+	return distance;
+} */
 /*
  * Create a candidate for the entry point
  */
 HnswCandidate *
-HnswEntryCandidate(char *base, HnswElement entryPoint, Datum q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec)
+HnswEntryCandidate(char *base, HnswElement entryPoint, Datum q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec, int use_pq, PQDist* pqdist)
 {
+
 	HnswCandidate *hc = palloc(sizeof(HnswCandidate));
+
+
 
 	HnswPtrStore(base, hc->element, entryPoint);
 	if (index == NULL)
-		hc->distance = GetCandidateDistance(base, hc, q, procinfo, collation);
+		hc->distance = GetCandidateDistance(base, hc, q, procinfo, collation, use_pq, pqdist);
 	else
 		HnswLoadElement(entryPoint, &hc->distance, &q, index, procinfo, collation, loadVec, NULL);
 	return hc;
@@ -773,8 +823,9 @@ CountElement(char *base, HnswElement skipElement, HnswCandidate * hc)
  * Algorithm 2 from paper
  */
 List *
-HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement)
+HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement, int use_pq, PQDist* pqdist)
 {
+	elog(INFO, "HnswSearchLayer");
 	List	   *w = NIL;
 	pairingheap *C = pairingheap_allocate(CompareNearestCandidates, NULL);
 	pairingheap *W = pairingheap_allocate(CompareFurthestCandidates, NULL);
@@ -783,6 +834,7 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 	ListCell   *lc2;
 	HnswNeighborArray *neighborhoodData = NULL;
 	Size		neighborhoodSize = 0;
+    
 
 	InitVisited(base, &v, index, ef, m);
 
@@ -856,7 +908,7 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 				f = ((HnswPairingHeapNode *) pairingheap_first(W))->inner;
 
 				if (index == NULL)
-					eDistance = GetCandidateDistance(base, e, q, procinfo, collation);
+					eDistance = GetCandidateDistance(base, e, q, procinfo, collation, use_pq, pqdist);
 				else
 					HnswLoadElement(eElement, &eDistance, &q, index, procinfo, collation, inserting, alwaysAdd ? NULL : &f->distance);
 
@@ -975,6 +1027,7 @@ CompareCandidateDistancesOffset(const void *a, const void *b)
 static float
 HnswGetDistance(char *base, HnswElement a, HnswElement b, FmgrInfo *procinfo, Oid collation)
 {
+
 	Datum		aValue = HnswGetValue(base, a);
 	Datum		bValue = HnswGetValue(base, b);
 
@@ -1132,7 +1185,8 @@ HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm
 	HnswElement hce = HnswPtrAccess(base, hc->element);
 	HnswNeighborArray *currentNeighbors = HnswGetNeighbors(base, hce, lc);
 	HnswCandidate hc2;
-
+    bool use_pq = HnswGetUsePQ(index);
+	PQDist* pqdist = HnswGetPQDist(index);
 	HnswPtrStore(base, hc2.element, element);
 	hc2.distance = hc->distance;
 
@@ -1162,7 +1216,7 @@ HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm
 				if (HnswPtrIsNull(base, hc3Element->value))
 					HnswLoadElement(hc3Element, &hc3->distance, &q, index, procinfo, collation, true, NULL);
 				else
-					hc3->distance = GetCandidateDistance(base, hc3, q, procinfo, collation);
+					hc3->distance = GetCandidateDistance(base, hc3, q, procinfo, collation, use_pq, pqdist);
 
 				/* Prune element if being deleted */
 				if (hc3Element->heaptidsLength == 0)
@@ -1256,13 +1310,23 @@ PrecomputeHash(char *base, HnswElement element)
  * Algorithm 1 from paper
  */
 void
-HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, bool existing)
+HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, int use_pq, PQDist* pqdist, bool existing)
 {
+	elog(INFO, "HnswFindElementNeighbors");
+	Datum value = HnswGetValue(base, element);
+	elog(INFO, "value: %p", value);
+	const float* query = (const float *) DatumGetPointer(value) + 2;
+	elog(INFO, "%f,%f,%f,%f", query[0], query[1], query[2], query[3]);
+	if(use_pq)
+	load_query_data_and_cache(pqdist, query);
 	List	   *ep;
 	List	   *w;
+
 	int			level = element->level;
+
 	int			entryLevel;
 	Datum		q = HnswGetValue(base, element);
+
 	HnswElement skipElement = existing ? element : NULL;
 
 #if PG_VERSION_NUM >= 130000
@@ -1272,17 +1336,21 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 #endif
 
 	/* No neighbors if no entry point */
-	if (entryPoint == NULL)
+	if (entryPoint == NULL){
+		elog(INFO, "entryPoint is NULL");
 		return;
+	}
+		
 
 	/* Get entry point and level */
-	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, true));
-	entryLevel = entryPoint->level;
+	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, true, use_pq, pqdist));
 
+	entryLevel = entryPoint->level;
+    elog(INFO, "entryLevel: %d", entryLevel);
 	/* 1st phase: greedy search to insert level */
 	for (int lc = entryLevel; lc >= level + 1; lc--)
 	{
-		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, true, skipElement);
+		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, true, skipElement, use_pq, pqdist);
 		ep = w;
 	}
 
@@ -1300,7 +1368,7 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 		List	   *neighbors;
 		List	   *lw;
 
-		w = HnswSearchLayer(base, q, ep, efConstruction, lc, index, procinfo, collation, m, true, skipElement);
+		w = HnswSearchLayer(base, q, ep, efConstruction, lc, index, procinfo, collation, m, true, skipElement, use_pq, pqdist);
 
 		/* Elements being deleted or skipped can help with search */
 		/* but should be removed before selecting neighbors */
@@ -1433,10 +1501,11 @@ void PQDist_load(PQDist* pq, const char* filename) {
     //    free(pq->pq_dist_cache_data);
     //}
     //pq->pq_dist_cache_data = (float*)aligned_alloc(64, sizeof(float) * pq->table_size);
-    pq->pq_dist_cache_data = (float*)malloc(sizeof(float) * pq->table_size);
+    pq->pq_dist_cache_data = (float*)palloc(sizeof(float) * pq->table_size);
+	pq->qdata = (float*)palloc(sizeof(float) * pq->d);
     //elog(INFO, "table_size: %d\n", pq->table_size);
     size_t codes_size = N / 8 * pq->m * pq->nbits;
-    pq->codes = (uint8_t*)malloc(codes_size);
+    pq->codes = (uint8_t*)palloc(codes_size);
     if (pq->codes == NULL) {
         //printf("Memory allocation failed for codes\n");
 		elog(ERROR, "Memory allocation failed for codes");
@@ -1445,7 +1514,7 @@ void PQDist_load(PQDist* pq, const char* filename) {
     fread(pq->codes, sizeof(uint8_t), codes_size, fin);
 
     //elog(INFO, "codes_size: %d\n", codes_size);
-    pq->centroids = (float*)malloc(sizeof(float) * pq->code_nums * pq->d);
+    pq->centroids = (float*)palloc(sizeof(float) * pq->code_nums * pq->d);
     if (pq->centroids == NULL) {
         elog(ERROR, "Memory allocation failed for centroids");
         exit(-1);
@@ -1464,5 +1533,135 @@ void PQDist_free(PQDist* pq) {
     if (pq->pq_dist_cache_data != NULL) {
         free(pq->pq_dist_cache_data);
     }
+}
+uint8_t* get_centroids_id(PQDist *pq, int id) {
+	
+    const uint8_t *code = pq->codes + id * (pq->m * pq->nbits / 8);
+    uint8_t *centroids_id = (uint8_t*)palloc(pq->m * sizeof(uint8_t));
+    memset(centroids_id, 0, pq->m);
+
+    if (pq->nbits == 8) {
+        size_t num_ids = pq->m;
+        size_t num_bytes = num_ids;
+
+        size_t i = 0;
+		size_t j = 0;
+
+        for (; i + 32 <= num_bytes; i += 32) {
+            __m256i input = _mm256_loadu_si256((__m256i const*)(code + i));
+            _mm256_storeu_si256((__m256i*)(centroids_id + i), input);
+        }
+        for (; i < num_bytes; i++)
+            centroids_id[i] = code[i];
+    } else {
+        size_t num_ids = pq->m;
+        size_t num_bytes = (num_ids + 1) / 2;
+
+        size_t i = 0;
+        size_t j = 0;
+
+        for (; i + 32 <= num_bytes; i += 32, j += 64) {
+            __m256i input = _mm256_loadu_si256((__m256i const*)(code + i));
+
+            __m256i low_mask = _mm256_set1_epi8(0x0F);
+            __m256i low = _mm256_and_si256(input, low_mask);
+
+            __m256i high = _mm256_srli_epi16(input, 4);
+            high = _mm256_and_si256(high, low_mask);
+
+            __m256i interleave_lo = _mm256_unpacklo_epi8(low, high);
+            __m256i interleave_hi = _mm256_unpackhi_epi8(low, high);
+
+            __m128i seg0 = _mm256_extracti128_si256(interleave_lo, 0);
+            __m128i seg1 = _mm256_extracti128_si256(interleave_hi, 0);
+            __m128i seg2 = _mm256_extracti128_si256(interleave_lo, 1);
+            __m128i seg3 = _mm256_extracti128_si256(interleave_hi, 1);
+
+            _mm_storeu_si128((__m128i*)(centroids_id + j), seg0);
+            _mm_storeu_si128((__m128i*)(centroids_id + j + 16), seg1);
+            _mm_storeu_si128((__m128i*)(centroids_id + j + 32), seg2);
+            _mm_storeu_si128((__m128i*)(centroids_id + j + 48), seg3);
+        }
+
+        for (; i < num_bytes; ++i, j += 2) {
+            centroids_id[j] = code[i] & 0x0F;
+            centroids_id[j + 1] = (code[i] >> 4) & 0x0F;
+        }
+    }
+    return centroids_id;
+}
+float* get_centroid_data(PQDist* pqdist, int quantizer, int code_id) {
+    return pqdist->centroids + (quantizer * pqdist->code_nums + code_id) * pqdist->d_pq;
+}
+float calc_dist(int d, float *vec1, float *vec2)
+{
+	float distance = 0;
+    for(int i = 0; i < d; i++){
+		distance += (vec1[i] - vec2[i]) * (vec1[i] - vec2[i]);
+	}
+	return distance;
+}
+void clear_pq_dist_cache(PQDist* pqdist)
+{
+    memset(pqdist->pq_dist_cache_data, 0, (pqdist->m*pqdist->code_nums) * sizeof(float));
+}
+
+void load_query_data_and_cache(PQDist* pqdist, const float *_qdata) {
+
+
+
+    memcpy(pqdist->qdata, _qdata, sizeof(float) * pqdist->d);
+	
+
+	
+    clear_pq_dist_cache(pqdist);
+
+    pqdist->use_cache = true;
+    
+    for (int i = 0; i < pqdist->m * pqdist->code_nums; i++) {
+        pqdist->pq_dist_cache_data[i] = calc_dist(pqdist->d_pq, get_centroid_data(pqdist, i / pqdist->code_nums, i % pqdist->code_nums), pqdist->qdata + (i / pqdist->code_nums) * pqdist->d_pq);
+    }
+
+
+    __builtin_prefetch(pqdist->pq_dist_cache_data, 0, 3);
+    size_t prefetch_size = 128;
+    for (int i = 0; i < pqdist->table_size * 4; i += prefetch_size / 4) {
+        __builtin_prefetch(pqdist->pq_dist_cache_data + i, 0, 3);
+    }
+}
+float calc_dist_pq_simd(PQDist* pqdist, int data_id, float *qdata, bool use_cache) {
+    float dist = 0;
+    uint8_t *ids = get_centroids_id(pqdist, data_id);
+    __m256 simd_dist = _mm256_setzero_ps();
+    int q;
+    const int stride = 8;
+
+    for (q = 0; q <= pqdist->m - stride; q += stride) {
+        __m128i id_vec_128 = _mm_loadl_epi64((__m128i*)(ids + q));
+        __m256i id_vec = _mm256_cvtepu8_epi32(id_vec_128);
+
+        __m256i offset_vec = _mm256_setr_epi32(0 * pqdist->code_nums, 1 * pqdist->code_nums, 2 * pqdist->code_nums, 3 * pqdist->code_nums,
+                                               4 * pqdist->code_nums, 5 * pqdist->code_nums, 6 * pqdist->code_nums, 7 * pqdist->code_nums);
+
+        id_vec = _mm256_add_epi32(id_vec, offset_vec);
+        __m256 dist_vec = _mm256_i32gather_ps(pqdist->pq_dist_cache_data + q * pqdist->code_nums, id_vec, 4);
+        simd_dist = _mm256_add_ps(simd_dist, dist_vec);
+    }
+
+    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+
+    float dist_array[8];
+    _mm256_storeu_ps(dist_array, simd_dist);
+    dist += dist_array[0] + dist_array[4];
+
+    for (; q < pqdist->m; q++) {
+        dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
+    }
+
+    return dist;
+}
+float calc_dist_pq_loaded_simd(PQDist* pqdist, int data_id) {
+    return calc_dist_pq_simd(pqdist, data_id, pqdist->qdata, pqdist->use_cache);
 }
 

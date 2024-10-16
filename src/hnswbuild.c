@@ -408,6 +408,7 @@ UpdateNeighborsInMemory(char *base, FmgrInfo *procinfo, Oid collation, HnswEleme
 static void
 UpdateGraphInMemory(FmgrInfo *procinfo, Oid collation, HnswElement element, int m, int efConstruction, HnswElement entryPoint, HnswBuildState *buildstate)
 {
+	elog(INFO, "begin to update graph in memory");
 	HnswGraph *graph = buildstate->graph;
 	char *base = buildstate->hnswarea;
 
@@ -432,6 +433,8 @@ UpdateGraphInMemory(FmgrInfo *procinfo, Oid collation, HnswElement element, int 
 static void
 InsertTupleInMemory(HnswBuildState *buildstate, HnswElement element)
 {
+	elog(INFO, "begin to insert tuple in memory");
+
 	FmgrInfo *procinfo = buildstate->procinfo;
 	Oid collation = buildstate->collation;
 	HnswGraph *graph = buildstate->graph;
@@ -440,6 +443,9 @@ InsertTupleInMemory(HnswBuildState *buildstate, HnswElement element)
 	LWLock *entryWaitLock = &graph->entryWaitLock;
 	int efConstruction = buildstate->efConstruction;
 	int m = buildstate->m;
+	int use_pq = buildstate->use_pq;
+	PQDist* pqdist = buildstate->pqdist;
+
 	char *base = buildstate->hnswarea;
 
 	/* Wait if another process needs exclusive lock on entry lock */
@@ -466,7 +472,7 @@ InsertTupleInMemory(HnswBuildState *buildstate, HnswElement element)
 	}
 
 	/* Find neighbors for element */
-	HnswFindElementNeighbors(base, element, entryPoint, NULL, procinfo, collation, m, efConstruction, false);
+	HnswFindElementNeighbors(base, element, entryPoint, NULL, procinfo, collation, m, efConstruction, use_pq, pqdist, false);
 
 	/* Update graph in memory */
 	UpdateGraphInMemory(procinfo, collation, element, m, efConstruction, entryPoint, buildstate);
@@ -687,6 +693,7 @@ HnswSharedMemoryAlloc(Size size, void *state)
 static void
 InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexInfo *indexInfo, ForkNumber forkNum)
 {
+
 	buildstate->heap = heap;
 	buildstate->index = index;
 	buildstate->indexInfo = indexInfo;
@@ -695,7 +702,7 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 
 	buildstate->m = HnswGetM(index);
 	buildstate->efConstruction = HnswGetEfConstruction(index);
-	buildstate->use_pq = HnswGetuse_pq(index);
+	buildstate->use_pq = HnswGetUsePQ(index);
 	if (buildstate->use_pq)
 	{
 		buildstate->pq_m = HnswGetPqM(index);
@@ -704,7 +711,11 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 		elog(INFO, "nbits: %d", buildstate->nbits);
 		buildstate->pq_dist_file_name = HnswGetPQDistFileName(index);
 		elog(INFO, "pq_dist_file_name: %s", buildstate->pq_dist_file_name);
+		buildstate->pqdist = (PQDist*)palloc(sizeof(PQDist));
 		PQDist_load(buildstate->pqdist, buildstate->pq_dist_file_name);
+
+		HnswSetPQDist(index, buildstate->pqdist);
+
 		elog(INFO, "pqdist loaded");
 	};
 	buildstate->dimensions = TupleDescAttr(index->rd_att, 0)->atttypmod;
@@ -728,10 +739,12 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 
 	/* Get support functions */
 	buildstate->procinfo = index_getprocinfo(index, 1, HNSW_DISTANCE_PROC);
+
 	buildstate->normprocinfo = HnswOptionalProcInfo(index, HNSW_NORM_PROC);
 	buildstate->collation = index->rd_indcollation[0];
 
 	InitGraph(&buildstate->graphData, NULL, maintenance_work_mem * 1024L);
+
 	buildstate->graph = &buildstate->graphData;
 	buildstate->ml = HnswGetMl(buildstate->m);
 	buildstate->maxLevel = HnswGetMaxLevel(buildstate->m);
@@ -751,6 +764,7 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 	buildstate->hnswleader = NULL;
 	buildstate->hnswshared = NULL;
 	buildstate->hnswarea = NULL;
+	
 	//elog(INFO, "buildstate initialized");
 }
 
@@ -760,6 +774,7 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 static void
 FreeBuildState(HnswBuildState *buildstate)
 {
+	elog(INFO, "begin to free build state");
 	MemoryContextDelete(buildstate->graphCtx);
 	MemoryContextDelete(buildstate->tmpCtx);
 }

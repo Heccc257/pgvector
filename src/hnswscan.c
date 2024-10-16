@@ -6,7 +6,7 @@
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
 #include "utils/memutils.h"
-
+#include "utils/rel.h"
 /*
  * Algorithm 5 from paper
  */
@@ -29,15 +29,20 @@ GetScanItems(IndexScanDesc scan, Datum q)
 	if (entryPoint == NULL)
 		return NIL;
 
-	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, false));
+
+	int use_pq = HnswGetUsePQ(index);
+	PQDist* pqdist = HnswGetPQDist(index);
+	int pq_m = HnswGetPqM(index);
+
+	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, false, use_pq, pq_m));
 
 	for (int lc = entryPoint->level; lc >= 1; lc--)
 	{
-		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, false, NULL);
+		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, false, NULL, use_pq, pqdist);
 		ep = w;
 	}
 
-	return HnswSearchLayer(base, q, ep, hnsw_ef_search, 0, index, procinfo, collation, m, false, NULL);
+	return HnswSearchLayer(base, q, ep, hnsw_ef_search, 0, index, procinfo, collation, m, false, NULL, use_pq, pqdist);
 }
 
 /*
@@ -73,6 +78,7 @@ GetScanValue(IndexScanDesc scan)
 IndexScanDesc
 hnswbeginscan(Relation index, int nkeys, int norderbys)
 {
+	elog(INFO, "hnswbeginscan");
 	IndexScanDesc scan;
 	HnswScanOpaque so;
 

@@ -134,7 +134,8 @@ typedef struct HnswNeighbor_encodedArray HnswNeighbor_encodedArray;
 HnswPtrDeclare(HnswElementData, HnswElementRelptr, HnswElementPtr);
 HnswPtrDeclare(HnswNeighborArray, HnswNeighborArrayRelptr, HnswNeighborArrayPtr);
 HnswPtrDeclare(HnswNeighborArrayPtr, HnswNeighborsRelptr, HnswNeighborsPtr);
-HnswPtrDeclare(HnswNeighbor_encodedArray, HnswNeighbor_encodedRelptr, HnswNeighbor_encodedPtr);
+HnswPtrDeclare(HnswNeighbor_encodedArray, HnswNeighbor_encodedRelptr, HnswNeighborArray_encodedPtr);
+HnswPtrDeclare(HnswNeighborArray_encodedPtr, HnswNeighbors_encodedRelptr, HnswNeighbors_encodedPtr);
 HnswPtrDeclare(char, DatumRelptr, DatumPtr);
 
 typedef struct Encode_Data
@@ -156,7 +157,7 @@ struct HnswElementData
 	uint8		deleted;
 	uint32		hash;
 	HnswNeighborsPtr neighbors;
-	HnswNeighbor_encodedPtr neighbors_encoded;
+	HnswNeighbors_encodedPtr neighbors_encoded;
 	BlockNumber blkno;
 	OffsetNumber offno;
 	OffsetNumber neighborOffno;
@@ -201,6 +202,7 @@ typedef struct HnswOptions
 	int 		pq_m;
 	int 		nbits;
 	const char* pq_dist_file_name;
+	PQDist* pqdist;
 }			HnswOptions;
 
 typedef struct HnswGraph
@@ -330,6 +332,7 @@ typedef struct HnswMetaPageData
 	int16		entryLevel;
 	BlockNumber insertPage;
 	const char* pq_dist_file_name;
+	PQDist* pqdist;
 }			HnswMetaPageData;
 
 typedef HnswMetaPageData * HnswMetaPage;
@@ -411,24 +414,26 @@ typedef struct HnswVacuumState
 /* Methods */
 int			HnswGetM(Relation index);
 int			HnswGetEfConstruction(Relation index);
-int         HnswGetuse_pq(Relation index);
+int         HnswGetUsePQ(Relation index);
 int 	    HnswGetPqM(Relation index);
 int 	    HnswGetNbits(Relation index);
 const char* HnswGetPQDistFileName(Relation index);
+PQDist*     HnswGetPQDist(Relation index);
+void        HnswSetPQDist(Relation index, PQDist* pqdist);
 FmgrInfo   *HnswOptionalProcInfo(Relation index, uint16 procnum);
 Datum		HnswNormValue(const HnswTypeInfo * typeInfo, Oid collation, Datum value);
 bool		HnswCheckNorm(FmgrInfo *procinfo, Oid collation, Datum value);
 Buffer		HnswNewBuffer(Relation index, ForkNumber forkNum);
 void		HnswInitPage(Buffer buf, Page page);
 void		HnswInit(void);
-List	   *HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement);
+List	   *HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement, int use_pq, PQDist* pqdist);
 HnswElement HnswGetEntryPoint(Relation index);
 void		HnswGetMetaPageInfo(Relation index, int *m, HnswElement * entryPoint);
 void	   *HnswAlloc(HnswAllocator * allocator, Size size);
 HnswElement HnswInitElement(char *base, ItemPointer tid, int m, double ml, int maxLevel, int use_pq, HnswAllocator * alloc, PQDist* pqdist);
 HnswElement HnswInitElementFromBlock(BlockNumber blkno, OffsetNumber offno);
-void		HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, bool existing);
-HnswCandidate *HnswEntryCandidate(char *base, HnswElement em, Datum q, Relation rel, FmgrInfo *procinfo, Oid collation, bool loadVec);
+void		HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, int use_pq, PQDist* pqdist, bool existing);
+HnswCandidate *HnswEntryCandidate(char *base, HnswElement em, Datum q, Relation rel, FmgrInfo *procinfo, Oid collation, bool loadVec, int use_pq, PQDist* pqdist);
 void		HnswUpdateMetaPage(Relation index, int updateEntry, HnswElement entryPoint, BlockNumber insertPage, ForkNumber forkNum, bool building);
 void		HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int m);
 void		HnswAddHeapTid(HnswElement element, ItemPointer heaptid);

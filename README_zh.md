@@ -8,6 +8,7 @@
 * `psql -U postgres`登录pgsql数据库
 * `\i script.sql`可以执行sql脚本
 
+* 需要在pgxs文件(pg_config --pgxs)中加入-mavx2选项
 * pqdist对象存储在hnsw.h/buildstate中，在hnswbuild.c/initbuildstate中初始化
 * hnswelementdata类里增加了存储自己和邻居节点encode_data的结构，具体见hnsw.h 140行
 * 在hnswbuild.c/inserttuple里传入自己的encode_data
