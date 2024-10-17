@@ -624,7 +624,7 @@ HnswLoadElementFromTuple(HnswElement element, HnswElementTuple etup, bool loadHe
  * Load an element and optionally get its distance from q
  */
 void
-HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec, float *maxDistance)
+HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec, float *maxDistance, int use_pq, PQDist* pqdist)
 {
 	Buffer		buf;
 	Page		page;
@@ -644,8 +644,10 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 	{
 		if (DatumGetPointer(*q) == NULL)
 			*distance = 0;
-		else
+		else if(!use_pq)
 			*distance = (float) DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
+		else
+			*distance = calc_dist_pq_loaded_simd(pqdist, element->heaptids[0].ip_posid - 1);
 	}
 
 	/* Load element */
@@ -661,7 +663,7 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 static float
 GetCandidateDistance(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo, Oid collation, bool use_pq, PQDist* pqdist)
 {
-	elog(INFO, "GetCandidateDistance");
+
 	HnswElement hce = HnswPtrAccess(base, hc->element);
 	Datum		value = HnswGetValue(base, hce);
     if(!use_pq){
@@ -705,7 +707,7 @@ HnswEntryCandidate(char *base, HnswElement entryPoint, Datum q, Relation index, 
 	if (index == NULL)
 		hc->distance = GetCandidateDistance(base, hc, q, procinfo, collation, use_pq, pqdist);
 	else
-		HnswLoadElement(entryPoint, &hc->distance, &q, index, procinfo, collation, loadVec, NULL);
+		HnswLoadElement(entryPoint, &hc->distance, &q, index, procinfo, collation, loadVec, NULL, use_pq, pqdist);
 	return hc;
 }
 
@@ -826,6 +828,14 @@ List *
 HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement, int use_pq, PQDist* pqdist)
 {
 	elog(INFO, "HnswSearchLayer");
+	if(index == NULL){
+		elog(INFO, "index is null");
+	}
+	//不在最底层不使用pq
+	if(lc != 0){
+		use_pq = 0;
+		pqdist = NULL;
+	}
 	List	   *w = NIL;
 	pairingheap *C = pairingheap_allocate(CompareNearestCandidates, NULL);
 	pairingheap *W = pairingheap_allocate(CompareFurthestCandidates, NULL);
@@ -910,7 +920,7 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 				if (index == NULL)
 					eDistance = GetCandidateDistance(base, e, q, procinfo, collation, use_pq, pqdist);
 				else
-					HnswLoadElement(eElement, &eDistance, &q, index, procinfo, collation, inserting, alwaysAdd ? NULL : &f->distance);
+					HnswLoadElement(eElement, &eDistance, &q, index, procinfo, collation, inserting, alwaysAdd ? NULL : &f->distance, use_pq, pqdist);
 
 				if (eDistance < f->distance || alwaysAdd)
 				{
@@ -948,6 +958,28 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 		}
 	}
 
+	if (lc == 0 && use_pq)
+	{
+		elog(INFO, "pq resort");
+		List	   *realDistanceCandidates = NIL;
+
+		while (!pairingheap_is_empty(W))
+		{
+			HnswCandidate *hc = ((HnswPairingHeapNode *) pairingheap_remove_first(W))->inner;
+			realDistanceCandidates = lappend(realDistanceCandidates, hc);
+		}
+
+
+		foreach (lc2, realDistanceCandidates)
+		{
+			HnswCandidate *hc = (HnswCandidate *) lfirst(lc2);
+			float		realDistance;
+			realDistance = GetCandidateDistance(base, hc, q, procinfo, collation, 0, NULL);
+			hc->distance = realDistance;
+			pairingheap_add(W, &(CreatePairingHeapNode(hc)->ph_node));
+		}
+	}
+
 	/* Add each element of W to w */
 	while (!pairingheap_is_empty(W))
 	{
@@ -955,6 +987,7 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 
 		w = lappend(w, hc);
 	}
+	
 
 	return w;
 }
@@ -1214,7 +1247,7 @@ HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm
 				HnswElement hc3Element = HnswPtrAccess(base, hc3->element);
 
 				if (HnswPtrIsNull(base, hc3Element->value))
-					HnswLoadElement(hc3Element, &hc3->distance, &q, index, procinfo, collation, true, NULL);
+					HnswLoadElement(hc3Element, &hc3->distance, &q, index, procinfo, collation, true, NULL, use_pq, pqdist);
 				else
 					hc3->distance = GetCandidateDistance(base, hc3, q, procinfo, collation, use_pq, pqdist);
 
@@ -1312,11 +1345,11 @@ PrecomputeHash(char *base, HnswElement element)
 void
 HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, int use_pq, PQDist* pqdist, bool existing)
 {
-	elog(INFO, "HnswFindElementNeighbors");
+
 	Datum value = HnswGetValue(base, element);
-	elog(INFO, "value: %p", value);
+
 	const float* query = (const float *) DatumGetPointer(value) + 2;
-	elog(INFO, "%f,%f,%f,%f", query[0], query[1], query[2], query[3]);
+
 	if(use_pq)
 	load_query_data_and_cache(pqdist, query);
 	List	   *ep;
