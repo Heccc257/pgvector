@@ -408,7 +408,7 @@ UpdateNeighborsInMemory(char *base, FmgrInfo *procinfo, Oid collation, HnswEleme
 static void
 UpdateGraphInMemory(FmgrInfo *procinfo, Oid collation, HnswElement element, int m, int efConstruction, HnswElement entryPoint, HnswBuildState *buildstate)
 {
-	elog(INFO, "begin to update graph in memory");
+
 	HnswGraph *graph = buildstate->graph;
 	char *base = buildstate->hnswarea;
 
@@ -433,7 +433,7 @@ UpdateGraphInMemory(FmgrInfo *procinfo, Oid collation, HnswElement element, int 
 static void
 InsertTupleInMemory(HnswBuildState *buildstate, HnswElement element)
 {
-	elog(INFO, "begin to insert tuple in memory");
+
 
 	FmgrInfo *procinfo = buildstate->procinfo;
 	Oid collation = buildstate->collation;
@@ -774,7 +774,7 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 static void
 FreeBuildState(HnswBuildState *buildstate)
 {
-	elog(INFO, "begin to free build state");
+
 	MemoryContextDelete(buildstate->graphCtx);
 	MemoryContextDelete(buildstate->tmpCtx);
 }
