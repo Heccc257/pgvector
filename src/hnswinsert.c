@@ -619,7 +619,7 @@ HnswInsertTupleOnDisk(Relation index, Datum value, Datum *values, bool *isnull, 
 	}
 
 	/* Find neighbors for element */
-	HnswFindElementNeighbors(base, element, entryPoint, index, procinfo, collation, m, efConstruction, false);
+	HnswFindElementNeighbors(base, element, entryPoint, index, procinfo, collation, m, efConstruction, false, use_pq, pqdist);
 
 	/* Update graph on disk */
 	UpdateGraphOnDisk(index, procinfo, collation, element, m, efConstruction, entryPoint, building);

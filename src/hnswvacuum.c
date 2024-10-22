@@ -184,6 +184,8 @@ static void
 RepairGraphElement(HnswVacuumState * vacuumstate, HnswElement element, HnswElement entryPoint)
 {
 	Relation	index = vacuumstate->index;
+	int use_pq = HnswGetUsePQ(index);
+	PQDist* pqdist = HnswGetPQDist(index);
 	Buffer		buf;
 	Page		page;
 	GenericXLogState *state;
@@ -205,7 +207,7 @@ RepairGraphElement(HnswVacuumState * vacuumstate, HnswElement element, HnswEleme
 	element->heaptidsLength = 0;
 
 	/* Find neighbors for element, skipping itself */
-	HnswFindElementNeighbors(base, element, entryPoint, index, procinfo, collation, m, efConstruction, true);
+	HnswFindElementNeighbors(base, element, entryPoint, index, procinfo, collation, m, efConstruction, true, use_pq, pqdist);
 
 	/* Zero memory for each element */
 	MemSet(ntup, 0, HNSW_TUPLE_ALLOC_SIZE);
@@ -239,6 +241,8 @@ static void
 RepairGraphEntryPoint(HnswVacuumState * vacuumstate)
 {
 	Relation	index = vacuumstate->index;
+	int use_pq = HnswGetUsePQ(index);
+	PQDist* pqdist = HnswGetPQDist(index);
 	HnswElement highestPoint = &vacuumstate->highestPoint;
 	HnswElement entryPoint;
 	MemoryContext oldCtx = MemoryContextSwitchTo(vacuumstate->tmpCtx);
@@ -256,7 +260,7 @@ RepairGraphEntryPoint(HnswVacuumState * vacuumstate)
 		LockPage(index, HNSW_UPDATE_LOCK, ShareLock);
 
 		/* Load element */
-		HnswLoadElement(highestPoint, NULL, NULL, index, vacuumstate->procinfo, vacuumstate->collation, true, NULL);
+		HnswLoadElement(highestPoint, NULL, NULL, index, vacuumstate->procinfo, vacuumstate->collation, true, NULL, use_pq, pqdist);
 
 		/* Repair if needed */
 		if (NeedsUpdated(vacuumstate, highestPoint))
@@ -294,7 +298,7 @@ RepairGraphEntryPoint(HnswVacuumState * vacuumstate)
 			 * is outdated, this can remove connections at higher levels in
 			 * the graph until they are repaired, but this should be fine.
 			 */
-			HnswLoadElement(entryPoint, NULL, NULL, index, vacuumstate->procinfo, vacuumstate->collation, true, NULL);
+			HnswLoadElement(entryPoint, NULL, NULL, index, vacuumstate->procinfo, vacuumstate->collation, true, NULL, use_pq, pqdist);
 
 			if (NeedsUpdated(vacuumstate, entryPoint))
 			{

@@ -667,7 +667,7 @@ GetCandidateDistance(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo
 	HnswElement hce = HnswPtrAccess(base, hc->element);
 	Datum		value = HnswGetValue(base, hce);
     if(!use_pq){
-		elog(INFO, "not using pq distance");
+
 		return DatumGetFloat8(FunctionCall2Coll(procinfo, collation, q, value));
 	}
 	assert(pqdist);
@@ -675,7 +675,6 @@ GetCandidateDistance(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo
 
 	Encode_Data* encode_data = hce->encoded_data;
 	distance = calc_dist_pq_loaded_simd(pqdist, hce->heaptids[0].ip_posid - 1);
-	elog(INFO, "distance: %f", distance);
 	return distance;
 
 }
@@ -827,10 +826,7 @@ CountElement(char *base, HnswElement skipElement, HnswCandidate * hc)
 List *
 HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement, int use_pq, PQDist* pqdist)
 {
-	elog(INFO, "HnswSearchLayer");
-	if(index == NULL){
-		elog(INFO, "index is null");
-	}
+	
 	//不在最底层不使用pq
 	if(lc != 0){
 		use_pq = 0;
@@ -960,7 +956,6 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 
 	if (lc == 0 && use_pq)
 	{
-		elog(INFO, "pq resort");
 		List	   *realDistanceCandidates = NIL;
 
 		while (!pairingheap_is_empty(W))
@@ -1370,7 +1365,6 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 
 	/* No neighbors if no entry point */
 	if (entryPoint == NULL){
-		elog(INFO, "entryPoint is NULL");
 		return;
 	}
 		
@@ -1379,7 +1373,7 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, true, use_pq, pqdist));
 
 	entryLevel = entryPoint->level;
-    elog(INFO, "entryLevel: %d", entryLevel);
+
 	/* 1st phase: greedy search to insert level */
 	for (int lc = entryLevel; lc >= level + 1; lc--)
 	{
