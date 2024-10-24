@@ -146,7 +146,8 @@ typedef struct Encode_Data
 struct HnswNeighbor_encodedArray
 {
 	int			length;
-	Encode_Data neighbors_encoded[FLEXIBLE_ARRAY_MEMBER];
+	int         m;
+	uint8_t*    neighbors_centroids;
 };
 struct HnswElementData
 {
@@ -419,7 +420,7 @@ int 	    HnswGetPqM(Relation index);
 int 	    HnswGetNbits(Relation index);
 const char* HnswGetPQDistFileName(Relation index);
 PQDist*     HnswGetPQDist(Relation index);
-void        HnswSetPQDist(Relation index, PQDist* pqdist);
+void        HnswSetPQDist(Relation index, const char* pq_dist_file_name);
 FmgrInfo   *HnswOptionalProcInfo(Relation index, uint16 procnum);
 Datum		HnswNormValue(const HnswTypeInfo * typeInfo, Oid collation, Datum value);
 bool		HnswCheckNorm(FmgrInfo *procinfo, Oid collation, Datum value);
@@ -469,6 +470,15 @@ static inline HnswNeighborArray *
 HnswGetNeighbors(char *base, HnswElement element, int lc)
 {
 	HnswNeighborArrayPtr *neighborList = HnswPtrAccess(base, element->neighbors);
+
+	Assert(element->level >= lc);
+
+	return HnswPtrAccess(base, neighborList[lc]);
+}
+static inline HnswNeighbor_encodedArray *
+HnswGetNeighbors_encoded(char *base, HnswElement element, int lc)
+{
+	HnswNeighborArrayPtr *neighborList = HnswPtrAccess(base, element->neighbors_encoded);
 
 	Assert(element->level >= lc);
 

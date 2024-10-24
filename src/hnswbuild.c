@@ -714,8 +714,6 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 		buildstate->pqdist = (PQDist*)palloc(sizeof(PQDist));
 		PQDist_load(buildstate->pqdist, buildstate->pq_dist_file_name);
 
-		HnswSetPQDist(index, buildstate->pqdist);
-
 		elog(INFO, "pqdist loaded");
 	};
 	buildstate->dimensions = TupleDescAttr(index->rd_att, 0)->atttypmod;
@@ -774,7 +772,6 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 static void
 FreeBuildState(HnswBuildState *buildstate)
 {
-
 	MemoryContextDelete(buildstate->graphCtx);
 	MemoryContextDelete(buildstate->tmpCtx);
 }

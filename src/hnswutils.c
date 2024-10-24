@@ -195,13 +195,16 @@ PQDist* HnswGetPQDist(Relation index)
 	}
 	return NULL;
 }
-void HnswSetPQDist(Relation index, PQDist* pqdist)
+void HnswSetPQDist(Relation index, const char* pq_dist_file_name)
 {
 	HnswOptions *opts = (HnswOptions *) index->rd_options;
 	
 	if (opts){
-		opts->pqdist = pqdist;
+		opts->pqdist = (PQDist*)palloc(sizeof(PQDist));
+		PQDist_load(opts->pqdist, pq_dist_file_name);
+		
 	}
+
 }
 
 /*
@@ -626,6 +629,7 @@ HnswLoadElementFromTuple(HnswElement element, HnswElementTuple etup, bool loadHe
 void
 HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec, float *maxDistance, int use_pq, PQDist* pqdist)
 {
+	
 	Buffer		buf;
 	Page		page;
 	HnswElementTuple etup;
@@ -647,7 +651,7 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 		else if(!use_pq)
 			*distance = (float) DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
 		else
-			*distance = calc_dist_pq_loaded_simd(pqdist, element->heaptids[0].ip_posid - 1);
+			*distance = (float)calc_dist_pq_loaded_simd(pqdist, element->heaptids[0].ip_posid - 1);
 	}
 
 	/* Load element */
@@ -672,8 +676,6 @@ GetCandidateDistance(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo
 	}
 	assert(pqdist);
 	float distance = 0;
-
-	Encode_Data* encode_data = hce->encoded_data;
 	distance = calc_dist_pq_loaded_simd(pqdist, hce->heaptids[0].ip_posid - 1);
 	return distance;
 
@@ -830,7 +832,6 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 	//不在最底层不使用pq
 	if(lc != 0){
 		use_pq = 0;
-		pqdist = NULL;
 	}
 	List	   *w = NIL;
 	pairingheap *C = pairingheap_allocate(CompareNearestCandidates, NULL);
@@ -963,17 +964,22 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 			HnswCandidate *hc = ((HnswPairingHeapNode *) pairingheap_remove_first(W))->inner;
 			realDistanceCandidates = lappend(realDistanceCandidates, hc);
 		}
-
-
+		
 		foreach (lc2, realDistanceCandidates)
 		{
+			
 			HnswCandidate *hc = (HnswCandidate *) lfirst(lc2);
 			float		realDistance;
-			realDistance = GetCandidateDistance(base, hc, q, procinfo, collation, 0, NULL);
+			if(index == NULL)
+				realDistance = GetCandidateDistance(base, hc, q, procinfo, collation, 0, NULL);
+			else
+				HnswLoadElement(HnswPtrAccess(base, hc->element), &realDistance, &q, index, procinfo, collation, inserting, NULL, 0, NULL);
 			hc->distance = realDistance;
+			
 			pairingheap_add(W, &(CreatePairingHeapNode(hc)->ph_node));
 		}
 	}
+	
 
 	/* Add each element of W to w */
 	while (!pairingheap_is_empty(W))
@@ -983,7 +989,7 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 		w = lappend(w, hc);
 	}
 	
-
+    
 	return w;
 }
 
@@ -1347,6 +1353,7 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 
 	if(use_pq)
 	load_query_data_and_cache(pqdist, query);
+
 	List	   *ep;
 	List	   *w;
 
@@ -1636,11 +1643,8 @@ void clear_pq_dist_cache(PQDist* pqdist)
 void load_query_data_and_cache(PQDist* pqdist, const float *_qdata) {
 
 
-
     memcpy(pqdist->qdata, _qdata, sizeof(float) * pqdist->d);
-	
 
-	
     clear_pq_dist_cache(pqdist);
 
     pqdist->use_cache = true;
@@ -1655,6 +1659,7 @@ void load_query_data_and_cache(PQDist* pqdist, const float *_qdata) {
     for (int i = 0; i < pqdist->table_size * 4; i += prefetch_size / 4) {
         __builtin_prefetch(pqdist->pq_dist_cache_data + i, 0, 3);
     }
+	
 }
 float calc_dist_pq_simd(PQDist* pqdist, int data_id, float *qdata, bool use_cache) {
     float dist = 0;
@@ -1689,6 +1694,9 @@ float calc_dist_pq_simd(PQDist* pqdist, int data_id, float *qdata, bool use_cach
     return dist;
 }
 float calc_dist_pq_loaded_simd(PQDist* pqdist, int data_id) {
-    return calc_dist_pq_simd(pqdist, data_id, pqdist->qdata, pqdist->use_cache);
+	
+    float distance = calc_dist_pq_simd(pqdist, data_id, pqdist->qdata, pqdist->use_cache);
+	
+	return distance;
 }
 
