@@ -33,11 +33,13 @@ GetScanItems(IndexScanDesc scan, Datum q)
 		return NIL;
 
 	int use_pq = HnswGetUsePQ(index);
+	PQDist* pqdist;
+	if (use_pq)
+	{
+		pqdist = HnswGetPQDist(index);
+		load_query_data_and_cache(pqdist, query);
+	}
 	int pq_m = HnswGetPqM(index);
-	PQDist* pqdist = HnswGetPQDist(index);
-
-	load_query_data_and_cache(pqdist, query);
-
 	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, false, 0, NULL));
 
 	for (int lc = entryPoint->level; lc >= 1; lc--)
@@ -88,7 +90,7 @@ hnswbeginscan(Relation index, int nkeys, int norderbys)
 	if (use_pq)
 	{
 		const char *pq_dist_file_name = HnswGetPQDistFileName(index);
-		//PQDist_load(pqdist, pq_dist_file_name);
+		// PQDist_load(pqdist, pq_dist_file_name);
 		HnswSetPQDist(index, pq_dist_file_name);
 	}
 
@@ -172,7 +174,6 @@ bool hnswgettuple(IndexScanDesc scan, ScanDirection dir)
 		LockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);
 
 		so->w = GetScanItems(scan, value);
-		
 
 		/* Release shared lock */
 		UnlockPage(scan->indexRelation, HNSW_SCAN_LOCK, ShareLock);
