@@ -34,26 +34,17 @@ GetScanItems(IndexScanDesc scan, Datum q)
 
 	int use_pq = HnswGetUsePQ(index);
 	int pq_m = HnswGetPqM(index);
-	PQDist *pqdist = (PQDist *)palloc(sizeof(PQDist));
-	if (use_pq)
-	{
-		const char *pq_dist_file_name = HnswGetPQDistFileName(index);
-		PQDist_load(pqdist, pq_dist_file_name);
-		load_query_data_and_cache(pqdist, query);
-
-	}
-
-
+	PQDist* pqdist = HnswGetPQDist(index);
+	elog(INFO, "pqdist: %p", pqdist);
+	load_query_data_and_cache(pqdist, query);
+	elog(INFO, "!!!!!!");
 	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, false, 0, NULL));
-
+    elog(INFO, "!!!!!!");
 	for (int lc = entryPoint->level; lc >= 1; lc--)
 	{
-
 		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, false, NULL, use_pq, pqdist);
 		ep = w;
 	}
-	
-
 	return HnswSearchLayer(base, q, ep, hnsw_ef_search, 0, index, procinfo, collation, m, false, NULL, use_pq, pqdist);
 }
 
@@ -91,6 +82,16 @@ GetScanValue(IndexScanDesc scan)
 IndexScanDesc
 hnswbeginscan(Relation index, int nkeys, int norderbys)
 {
+	int use_pq = HnswGetUsePQ(index);
+
+	PQDist *pqdist = (PQDist *)palloc(sizeof(PQDist));
+	if (use_pq)
+	{
+		const char *pq_dist_file_name = HnswGetPQDistFileName(index);
+		//PQDist_load(pqdist, pq_dist_file_name);
+		HnswSetPQDist(index, pq_dist_file_name);
+	}
+
 	IndexScanDesc scan;
 	HnswScanOpaque so;
 

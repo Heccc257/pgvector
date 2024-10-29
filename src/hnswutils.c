@@ -165,7 +165,7 @@ const char* HnswGetPQDistFileName(Relation index)
 	HnswOptions *opts = (HnswOptions *) index->rd_options;
     
 	if (opts){
-		opts->pq_dist_file_name = "/root/python_gist/encoded_data_toy";
+		opts->pq_dist_file_name = "/root/python_gist/encoded_data_10000_120_4";
 		return opts->pq_dist_file_name;
 	}
 	return NULL;
