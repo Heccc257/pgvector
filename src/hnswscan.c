@@ -38,7 +38,7 @@ GetScanItems(IndexScanDesc scan, Datum q)
 	if (use_pq)
 	{
 		const char *pq_dist_file_name = HnswGetPQDistFileName(index);
-		PQDist_load(pqdist, "/root/python_gist/encoded_data_toy");
+		PQDist_load(pqdist, pq_dist_file_name);
 		load_query_data_and_cache(pqdist, query);
 
 	}
