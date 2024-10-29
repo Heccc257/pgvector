@@ -165,7 +165,17 @@ const char* HnswGetPQDistFileName(Relation index)
 	HnswOptions *opts = (HnswOptions *) index->rd_options;
     
 	if (opts){
-		opts->pq_dist_file_name = "/root/python_gist/encoded_data_10000_120_4";
+		FILE* file = fopen("/root/pqfile.pth", "r");
+		if(file == NULL){
+			elog(INFO, "pq config file not exist\n");
+		}
+		fseek(file, 0, SEEK_END); 
+		size_t length = ftell(file);         
+		fseek(file, 0, SEEK_SET);
+		char*buffer = (char *)palloc(length + 1);
+		fread(buffer, 1, length, file);
+		buffer[length] = '\0';
+    	opts->pq_dist_file_name = buffer;
 		return opts->pq_dist_file_name;
 	}
 	return NULL;
