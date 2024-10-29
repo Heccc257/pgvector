@@ -35,11 +35,11 @@ GetScanItems(IndexScanDesc scan, Datum q)
 	int use_pq = HnswGetUsePQ(index);
 	int pq_m = HnswGetPqM(index);
 	PQDist* pqdist = HnswGetPQDist(index);
-	elog(INFO, "pqdist: %p", pqdist);
+
 	load_query_data_and_cache(pqdist, query);
-	elog(INFO, "!!!!!!");
+
 	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, false, 0, NULL));
-    elog(INFO, "!!!!!!");
+
 	for (int lc = entryPoint->level; lc >= 1; lc--)
 	{
 		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, false, NULL, use_pq, pqdist);
