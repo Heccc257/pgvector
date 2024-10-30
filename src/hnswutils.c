@@ -836,11 +836,11 @@ CountElement(char *base, HnswElement skipElement, HnswCandidate * hc)
  * Algorithm 2 from paper
  */
 List *
-HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement, int use_pq, PQDist* pqdist)
+HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement, int use_pq, PQDist* pqdist, bool is_search_knn)
 {
 	
 	//不在最底层不使用pq
-	if(lc != 0){
+	if(lc != 0 || !is_search_knn){
 		use_pq = 0;
 	}
 	List	   *w = NIL;
@@ -1394,7 +1394,7 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 	/* 1st phase: greedy search to insert level */
 	for (int lc = entryLevel; lc >= level + 1; lc--)
 	{
-		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, true, skipElement, use_pq, pqdist);
+		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, true, skipElement, use_pq, pqdist, false);
 		ep = w;
 	}
 
@@ -1412,7 +1412,7 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 		List	   *neighbors;
 		List	   *lw;
 
-		w = HnswSearchLayer(base, q, ep, efConstruction, lc, index, procinfo, collation, m, true, skipElement, use_pq, pqdist);
+		w = HnswSearchLayer(base, q, ep, efConstruction, lc, index, procinfo, collation, m, true, skipElement, use_pq, pqdist, false);
 
 		/* Elements being deleted or skipped can help with search */
 		/* but should be removed before selecting neighbors */

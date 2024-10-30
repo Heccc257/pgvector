@@ -44,10 +44,10 @@ GetScanItems(IndexScanDesc scan, Datum q)
 
 	for (int lc = entryPoint->level; lc >= 1; lc--)
 	{
-		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, false, NULL, use_pq, pqdist);
+		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, false, NULL, use_pq, pqdist, true);
 		ep = w;
 	}
-	return HnswSearchLayer(base, q, ep, hnsw_ef_search, 0, index, procinfo, collation, m, false, NULL, use_pq, pqdist);
+	return HnswSearchLayer(base, q, ep, hnsw_ef_search, 0, index, procinfo, collation, m, false, NULL, use_pq, pqdist, true);
 }
 
 /*
