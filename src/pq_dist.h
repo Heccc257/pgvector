@@ -8,6 +8,7 @@ typedef struct{
     int nbits;
     int code_nums;
     int d_pq;
+    int tuple_id;
     size_t table_size;
     uint8_t *codes;
     float* centroids;

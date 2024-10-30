@@ -337,10 +337,11 @@ HnswInitElement(char *base, ItemPointer heaptid, int m, double ml, int maxLevel,
 	HnswPtrStore(base, element->value, (Pointer) NULL);
     //elog(INFO, "开始导入encode data\n");
 	if(use_pq){
-		
-		element->encoded_data = (Encode_Data*)HnswAlloc(allocator, sizeof(Encode_Data));
-		element->encoded_data->length = pqdist->code_nums;
-		element->encoded_data->data = pqdist->codes + (heaptid->ip_posid - 1) * pqdist->code_nums / sizeof(uint8_t);
+		element->id = pqdist->tuple_id++;
+		//elog(INFO, "id:%d", element->id);
+		//element->encoded_data = (Encode_Data*)HnswAlloc(allocator, sizeof(Encode_Data));
+		//element->encoded_data->length = pqdist->code_nums;
+		//element->encoded_data->data = pqdist->codes + (heaptid->ip_posid - 1) * pqdist->code_nums / sizeof(uint8_t);
 
 	}
 	
@@ -661,7 +662,7 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 		else if(!use_pq)
 			*distance = (float) DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
 		else
-			*distance = (float)calc_dist_pq_loaded_simd(pqdist, element->heaptids[0].ip_posid - 1);
+			*distance = (float)calc_dist_pq_loaded_simd(pqdist, element->id);
 	}
 
 	/* Load element */
@@ -686,7 +687,7 @@ GetCandidateDistance(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo
 	}
 	assert(pqdist);
 	float distance = 0;
-	distance = calc_dist_pq_loaded_simd(pqdist, hce->heaptids[0].ip_posid - 1);
+	distance = calc_dist_pq_loaded_simd(pqdist, hce->id);
 	return distance;
 
 }
@@ -843,6 +844,7 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 	if(lc != 0 || !is_search_knn){
 		use_pq = 0;
 	}
+	
 	List	   *w = NIL;
 	pairingheap *C = pairingheap_allocate(CompareNearestCandidates, NULL);
 	pairingheap *W = pairingheap_allocate(CompareFurthestCandidates, NULL);
@@ -1536,7 +1538,7 @@ void PQDist_load(PQDist* pq, const char* filename) {
     elog(INFO, "load: %d %d %d %d", N, pq->d, pq->m, pq->nbits);
     assert(8 % pq->nbits == 0);
     pq->code_nums = 1 << pq->nbits;
-
+    pq->tuple_id = 0;
     pq->d_pq = pq->d / pq->m;
     pq->table_size = pq->m * pq->code_nums;
 

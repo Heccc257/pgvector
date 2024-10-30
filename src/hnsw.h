@@ -157,6 +157,7 @@ struct HnswElementData
 	uint8		level;
 	uint8		deleted;
 	uint32		hash;
+	int id;
 	HnswNeighborsPtr neighbors;
 	HnswNeighbors_encodedPtr neighbors_encoded;
 	BlockNumber blkno;
