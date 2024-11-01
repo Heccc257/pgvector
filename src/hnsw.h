@@ -157,7 +157,7 @@ struct HnswElementData
 	uint8		level;
 	uint8		deleted;
 	uint32		hash;
-	int id;
+	uint32      id;
 	HnswNeighborsPtr neighbors;
 	HnswNeighbors_encodedPtr neighbors_encoded;
 	BlockNumber blkno;
@@ -354,6 +354,7 @@ typedef struct HnswElementTupleData
 	uint8		level;
 	uint8		deleted;
 	uint8		unused;
+	uint32      id;
 	ItemPointerData heaptids[HNSW_HEAPTIDS];
 	ItemPointerData neighbortid;
 	uint16		unused2;

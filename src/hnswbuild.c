@@ -302,6 +302,7 @@ FlushPages(HnswBuildState *buildstate)
 	elog(INFO, "memory: %zu MB", buildstate->graph->memoryUsed / (1024 * 1024));
 #endif
 
+
 	CreateMetaPage(buildstate);
 	CreateGraphPages(buildstate);
 	WriteNeighborTuples(buildstate);
@@ -366,6 +367,7 @@ AddElementInMemory(char *base, HnswGraph *graph, HnswElement element)
 {
 	SpinLockAcquire(&graph->lock);
 	element->next = graph->head;
+
 	HnswPtrStore(base, graph->head, element);
 	SpinLockRelease(&graph->lock);
 }
@@ -391,6 +393,7 @@ UpdateNeighborsInMemory(char *base, FmgrInfo *procinfo, Oid collation, HnswEleme
 		{
 			HnswCandidate *hc = &neighbors->items[i];
 			HnswElement neighborElement = HnswPtrAccess(base, hc->element);
+
 
 			/* Keep scan-build happy on Mac x86-64 */
 			Assert(neighborElement);
@@ -472,7 +475,7 @@ InsertTupleInMemory(HnswBuildState *buildstate, HnswElement element)
 	}
 
 	/* Find neighbors for element */
-	HnswFindElementNeighbors(base, element, entryPoint, NULL, procinfo, collation, m, efConstruction, use_pq, pqdist, false);
+	HnswFindElementNeighbors(base, element, entryPoint, NULL, procinfo, collation, m, efConstruction, 0, NULL, false);
 
 	/* Update graph in memory */
 	UpdateGraphInMemory(procinfo, collation, element, m, efConstruction, entryPoint, buildstate);

@@ -494,6 +494,7 @@ HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element)
 	etup->type = HNSW_ELEMENT_TUPLE_TYPE;
 	etup->level = element->level;
 	etup->deleted = 0;
+	etup->id = element->id;
 	for (int i = 0; i < HNSW_HEAPTIDS; i++)
 	{
 		if (i < element->heaptidsLength)
@@ -609,6 +610,7 @@ HnswLoadElementFromTuple(HnswElement element, HnswElementTuple etup, bool loadHe
 {
 	element->level = etup->level;
 	element->deleted = etup->deleted;
+	element->id = etup->id;
 	element->neighborPage = ItemPointerGetBlockNumber(&etup->neighbortid);
 	element->neighborOffno = ItemPointerGetOffsetNumber(&etup->neighbortid);
 	element->heaptidsLength = 0;
@@ -662,7 +664,7 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 		else if(!use_pq)
 			*distance = (float) DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
 		else
-			*distance = (float)calc_dist_pq_loaded_simd(pqdist, element->id);
+			*distance = (float)calc_dist_pq_loaded_simd(pqdist, etup->id);
 	}
 
 	/* Load element */
@@ -1231,8 +1233,8 @@ HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm
 	HnswElement hce = HnswPtrAccess(base, hc->element);
 	HnswNeighborArray *currentNeighbors = HnswGetNeighbors(base, hce, lc);
 	HnswCandidate hc2;
-    bool use_pq = HnswGetUsePQ(index);
-	PQDist* pqdist = HnswGetPQDist(index);
+    //bool use_pq = HnswGetUsePQ(index);
+	//PQDist* pqdist = HnswGetPQDist(index);
 	HnswPtrStore(base, hc2.element, element);
 	hc2.distance = hc->distance;
 
@@ -1260,9 +1262,9 @@ HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm
 				HnswElement hc3Element = HnswPtrAccess(base, hc3->element);
 
 				if (HnswPtrIsNull(base, hc3Element->value))
-					HnswLoadElement(hc3Element, &hc3->distance, &q, index, procinfo, collation, true, NULL, use_pq, pqdist);
+					HnswLoadElement(hc3Element, &hc3->distance, &q, index, procinfo, collation, true, NULL, 0, NULL);
 				else
-					hc3->distance = GetCandidateDistance(base, hc3, q, procinfo, collation, use_pq, pqdist);
+					hc3->distance = GetCandidateDistance(base, hc3, q, procinfo, collation, 0, NULL);
 
 				/* Prune element if being deleted */
 				if (hc3Element->heaptidsLength == 0)
@@ -1361,10 +1363,10 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 
 	Datum value = HnswGetValue(base, element);
 
-	const float* query = (const float *) DatumGetPointer(value) + 2;
+	/* const float* query = (const float *) DatumGetPointer(value) + 2;
 
 	if(use_pq)
-	load_query_data_and_cache(pqdist, query);
+	load_query_data_and_cache(pqdist, query); */
 
 	List	   *ep;
 	List	   *w;
@@ -1706,7 +1708,7 @@ float calc_dist_pq_simd(PQDist* pqdist, int data_id, float *qdata, bool use_cach
     return dist;
 }
 float calc_dist_pq_loaded_simd(PQDist* pqdist, int data_id) {
-	
+    //elog(INFO, "data_id: %d", data_id);
     float distance = calc_dist_pq_simd(pqdist, data_id, pqdist->qdata, pqdist->use_cache);
 	
 	return distance;

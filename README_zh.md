@@ -13,3 +13,5 @@
 * hnswelementdata类里增加了存储自己和邻居节点encode_data的结构，具体见hnsw.h 140行
 * 在hnswbuild.c/inserttuple里传入自己的encode_data
 * 一个问题：index里的pq_dist_file_name不知道为什么是一个无效指针，需要在initbuildstate里手动指明。
+* HnswSetElementTuple
+* 
