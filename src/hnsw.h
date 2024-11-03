@@ -367,10 +367,34 @@ typedef struct HnswNeighborTupleData
 	uint8		type;
 	uint8		unused;
 	uint16		count;
+
+	// bits per codebookid
+	uint8       nbits;
+	// subspaces
+	uint16      D;
+	// neighbors
+	uint16      M;
+	// encode_data和领接链表共用存储空间，需要指向对应的位置
+	// 一共有(1+M) * D * nbits / 8 字节的空间
+	uint8_t     *encode_data;
 	ItemPointerData indextids[FLEXIBLE_ARRAY_MEMBER];
 }			HnswNeighborTupleData;
 
 typedef HnswNeighborTupleData * HnswNeighborTuple;
+
+typedef struct HnswEncodeDataTupleData
+{
+	uint8		type;
+	uint8		unused;
+
+	uint8       nbtis;
+	// number of neighbors
+	uint16 		count;
+	// subpspaces
+	uint16      M;
+	uint8      	encode_data[FLEXIBLE_ARRAY_MEMBER];
+}           HnswEncodeDataTupleData;
+typedef HnswEncodeDataTupleData * HnswEncodeDataTuple;
 
 typedef struct HnswScanOpaqueData
 {

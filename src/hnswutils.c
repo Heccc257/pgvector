@@ -535,6 +535,15 @@ HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int m)
 		}
 	}
 
+	// 这里初始化就行了，
+	ntup->encode_data = (void*)(&ntup->indextids[idx]);
+	HnswNeighborArray *neighbors = HnswGetNeighbors(base, e, 0);
+	int			lm = HnswGetLayerM(m, 0);
+	for (int i = 0; i < lm; i++) {
+		// 加载第0层每一个邻居的encode_data
+		// 以及自己的encode_data
+
+	}
 	ntup->count = idx;
 }
 

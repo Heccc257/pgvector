@@ -157,7 +157,7 @@ AddElementOnDisk(Relation index, HnswElement e, int m, BlockNumber insertPage, B
 
 	/* Calculate sizes */
 	etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(HnswPtrAccess(base, e->value)));
-	ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(e->level, m);
+	ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(e->level, m); // TODO 需要再加上(1+M) * D * nbits / 8 
 	combinedSize = etupSize + ntupSize + sizeof(ItemIdData);
 	maxSize = HNSW_MAX_SIZE;
 	minCombinedSize = etupSize + HNSW_NEIGHBOR_TUPLE_SIZE(0, m) + sizeof(ItemIdData);
