@@ -579,9 +579,9 @@ LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int
 	/* Ensure expected neighbors */
 	if (ntup->count != neighborCount)
 		return;
-	elog(INFO, "aaaaaa");
+
 	void *pq_store = (void *)(ntup->indextids + ntup->count) + pq_m;
-	elog(INFO, "bbbbbb");
+
 
 	for (int i = 0; i < neighborCount; i++)
 	{
