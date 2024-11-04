@@ -187,7 +187,8 @@ CreateGraphPages(HnswBuildState *buildstate)
 
 		/* Calculate sizes */
 		etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(valuePtr));
-		ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(element->level, buildstate->m);
+		Size neighborCount = (2) * buildstate->m;
+		ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (buildstate->m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m);
 		combinedSize = etupSize + ntupSize + sizeof(ItemIdData);
 
 		/* Initial size check */
@@ -251,6 +252,8 @@ WriteNeighborTuples(HnswBuildState *buildstate)
 	Relation index = buildstate->index;
 	ForkNumber forkNum = buildstate->forkNum;
 	int m = buildstate->m;
+	int use_pq = buildstate->use_pq;
+	PQDist* pqdist = buildstate->pqdist;
 	HnswElementPtr iter = buildstate->graph->head;
 	char *base = buildstate->hnswarea;
 	HnswNeighborTuple ntup;
@@ -263,7 +266,8 @@ WriteNeighborTuples(HnswBuildState *buildstate)
 		HnswElement element = HnswPtrAccess(base, iter);
 		Buffer buf;
 		Page page;
-		Size ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(element->level, m);
+		Size neighborCount = (2) * m;
+		Size ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m);
 
 		/* Update iterator */
 		iter = element->next;
@@ -279,7 +283,7 @@ WriteNeighborTuples(HnswBuildState *buildstate)
 		LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 		page = BufferGetPage(buf);
 
-		HnswSetNeighborTuple(base, ntup, element, m);
+		HnswSetNeighborTuple(base, ntup, element, m, use_pq, pqdist);
 
 		if (!PageIndexTupleOverwrite(page, element->neighborOffno, (Item)ntup, ntupSize))
 			elog(ERROR, "failed to add index item to \"%s\"", RelationGetRelationName(index));
@@ -716,7 +720,6 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 		elog(INFO, "pq_dist_file_name: %s", buildstate->pq_dist_file_name);
 		buildstate->pqdist = (PQDist*)palloc(sizeof(PQDist));
 		PQDist_load(buildstate->pqdist, buildstate->pq_dist_file_name);
-
 		elog(INFO, "pqdist loaded");
 	};
 	buildstate->dimensions = TupleDescAttr(index->rd_att, 0)->atttypmod;
@@ -777,6 +780,7 @@ FreeBuildState(HnswBuildState *buildstate)
 {
 	MemoryContextDelete(buildstate->graphCtx);
 	MemoryContextDelete(buildstate->tmpCtx);
+
 }
 
 /*

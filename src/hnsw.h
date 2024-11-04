@@ -140,9 +140,10 @@ HnswPtrDeclare(char, DatumRelptr, DatumPtr);
 
 typedef struct Encode_Data
 {
-	uint8_t* data;
 	int length;
+	uint8_t   data[FLEXIBLE_ARRAY_MEMBER];
 }Encode_Data;
+typedef Encode_Data* Encode_DataPtr;
 struct HnswNeighbor_encodedArray
 {
 	int			length;
@@ -159,13 +160,13 @@ struct HnswElementData
 	uint32		hash;
 	uint32      id;
 	HnswNeighborsPtr neighbors;
-	HnswNeighbors_encodedPtr neighbors_encoded;
+	//HnswNeighbors_encodedPtr neighbors_encoded;
 	BlockNumber blkno;
 	OffsetNumber offno;
 	OffsetNumber neighborOffno;
 	BlockNumber neighborPage;
 	DatumPtr	value;
-	Encode_Data*    encoded_data;
+	Encode_DataPtr    encode_data;
 	LWLock		lock;
 };
 
@@ -368,6 +369,9 @@ typedef struct HnswNeighborTupleData
 	uint8		type;
 	uint8		unused;
 	uint16		count;
+
+	// encode_data和邻接链表公用存储空间，indextids + count指向encode_data的起始位置
+	// encode_data共占(1 + neighborCount) * m * nbits / 8字节
 	ItemPointerData indextids[FLEXIBLE_ARRAY_MEMBER];
 }			HnswNeighborTupleData;
 
@@ -438,7 +442,7 @@ HnswElement HnswInitElementFromBlock(BlockNumber blkno, OffsetNumber offno);
 void		HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, int use_pq, PQDist* pqdist, bool existing);
 HnswCandidate *HnswEntryCandidate(char *base, HnswElement em, Datum q, Relation rel, FmgrInfo *procinfo, Oid collation, bool loadVec, int use_pq, PQDist* pqdist);
 void		HnswUpdateMetaPage(Relation index, int updateEntry, HnswElement entryPoint, BlockNumber insertPage, ForkNumber forkNum, bool building);
-void		HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int m);
+void		HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int m, int use_pq, PQDist* pqdist);
 void		HnswAddHeapTid(HnswElement element, ItemPointer heaptid);
 void		HnswInitNeighbors(char *base, HnswElement element, int m, HnswAllocator * alloc);
 bool		HnswInsertTupleOnDisk(Relation index, Datum value, Datum *values, bool *isnull, ItemPointer heap_tid, bool building);
@@ -477,7 +481,7 @@ HnswGetNeighbors(char *base, HnswElement element, int lc)
 
 	return HnswPtrAccess(base, neighborList[lc]);
 }
-static inline HnswNeighbor_encodedArray *
+/* static inline HnswNeighbor_encodedArray *
 HnswGetNeighbors_encoded(char *base, HnswElement element, int lc)
 {
 	HnswNeighborArrayPtr *neighborList = HnswPtrAccess(base, element->neighbors_encoded);
@@ -485,7 +489,7 @@ HnswGetNeighbors_encoded(char *base, HnswElement element, int lc)
 	Assert(element->level >= lc);
 
 	return HnswPtrAccess(base, neighborList[lc]);
-}
+} */
 
 /* Hash tables */
 typedef struct TidHashEntry

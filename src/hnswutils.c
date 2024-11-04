@@ -32,7 +32,7 @@
 static inline uint64
 murmurhash64(uint64 data)
 {
-	uint64		h = data;
+	uint64 h = data;
 
 	h ^= h >> 33;
 	h *= 0xff51afd7ed558ccd;
@@ -50,9 +50,9 @@ hash_tid(ItemPointerData tid)
 {
 	union
 	{
-		uint64		i;
+		uint64 i;
 		ItemPointerData tid;
-	}			x;
+	} x;
 
 	/* Initialize unused bytes */
 	x.i = 0;
@@ -61,13 +61,13 @@ hash_tid(ItemPointerData tid)
 	return murmurhash64(x.i);
 }
 
-#define SH_PREFIX		tidhash
-#define SH_ELEMENT_TYPE	TidHashEntry
-#define SH_KEY_TYPE		ItemPointerData
-#define	SH_KEY			tid
-#define SH_HASH_KEY(tb, key)	hash_tid(key)
-#define SH_EQUAL(tb, a, b)		ItemPointerEquals(&a, &b)
-#define	SH_SCOPE		extern
+#define SH_PREFIX tidhash
+#define SH_ELEMENT_TYPE TidHashEntry
+#define SH_KEY_TYPE ItemPointerData
+#define SH_KEY tid
+#define SH_HASH_KEY(tb, key) hash_tid(key)
+#define SH_EQUAL(tb, a, b) ItemPointerEquals(&a, &b)
+#define SH_SCOPE extern
 #define SH_DEFINE
 #include "lib/simplehash.h"
 
@@ -76,19 +76,19 @@ static uint32
 hash_pointer(uintptr_t ptr)
 {
 #if SIZEOF_VOID_P == 8
-	return murmurhash64((uint64) ptr);
+	return murmurhash64((uint64)ptr);
 #else
-	return murmurhash32((uint32) ptr);
+	return murmurhash32((uint32)ptr);
 #endif
 }
 
-#define SH_PREFIX		pointerhash
-#define SH_ELEMENT_TYPE	PointerHashEntry
-#define SH_KEY_TYPE		uintptr_t
-#define	SH_KEY			ptr
-#define SH_HASH_KEY(tb, key)	hash_pointer(key)
-#define SH_EQUAL(tb, a, b)		(a == b)
-#define	SH_SCOPE		extern
+#define SH_PREFIX pointerhash
+#define SH_ELEMENT_TYPE PointerHashEntry
+#define SH_KEY_TYPE uintptr_t
+#define SH_KEY ptr
+#define SH_HASH_KEY(tb, key) hash_pointer(key)
+#define SH_EQUAL(tb, a, b) (a == b)
+#define SH_SCOPE extern
 #define SH_DEFINE
 #include "lib/simplehash.h"
 
@@ -97,19 +97,19 @@ static uint32
 hash_offset(Size offset)
 {
 #if SIZEOF_SIZE_T == 8
-	return murmurhash64((uint64) offset);
+	return murmurhash64((uint64)offset);
 #else
-	return murmurhash32((uint32) offset);
+	return murmurhash32((uint32)offset);
 #endif
 }
 
-#define SH_PREFIX		offsethash
-#define SH_ELEMENT_TYPE	OffsetHashEntry
-#define SH_KEY_TYPE		Size
-#define	SH_KEY			offset
-#define SH_HASH_KEY(tb, key)	hash_offset(key)
-#define SH_EQUAL(tb, a, b)		(a == b)
-#define	SH_SCOPE		extern
+#define SH_PREFIX offsethash
+#define SH_ELEMENT_TYPE OffsetHashEntry
+#define SH_KEY_TYPE Size
+#define SH_KEY offset
+#define SH_HASH_KEY(tb, key) hash_offset(key)
+#define SH_EQUAL(tb, a, b) (a == b)
+#define SH_SCOPE extern
 #define SH_DEFINE
 #include "lib/simplehash.h"
 
@@ -118,15 +118,14 @@ typedef union
 	pointerhash_hash *pointers;
 	offsethash_hash *offsets;
 	tidhash_hash *tids;
-}			visited_hash;
+} visited_hash;
 
 /*
  * Get the max number of connections in an upper layer for each element in the index
  */
-int
-HnswGetM(Relation index)
+int HnswGetM(Relation index)
 {
-	HnswOptions *opts = (HnswOptions *) index->rd_options;
+	HnswOptions *opts = (HnswOptions *)index->rd_options;
 
 	if (opts)
 		return opts->m;
@@ -135,9 +134,9 @@ HnswGetM(Relation index)
 }
 int HnswGetUsePQ(Relation index)
 {
-	if(index == NULL)
-	return 0;
-	HnswOptions *opts = (HnswOptions *) index->rd_options;
+	if (index == NULL)
+		return 0;
+	HnswOptions *opts = (HnswOptions *)index->rd_options;
 
 	if (opts)
 		return opts->use_pq;
@@ -146,7 +145,7 @@ int HnswGetUsePQ(Relation index)
 }
 int HnswGetPqM(Relation index)
 {
-	HnswOptions *opts = (HnswOptions *) index->rd_options;
+	HnswOptions *opts = (HnswOptions *)index->rd_options;
 
 	if (opts)
 		return opts->pq_m;
@@ -154,28 +153,30 @@ int HnswGetPqM(Relation index)
 }
 int HnswGetNbits(Relation index)
 {
-	HnswOptions *opts = (HnswOptions *) index->rd_options;
+	HnswOptions *opts = (HnswOptions *)index->rd_options;
 
 	if (opts)
 		return opts->nbits;
 	return HNSW_DEFAULT_NBITS;
 }
-const char* HnswGetPQDistFileName(Relation index)
+const char *HnswGetPQDistFileName(Relation index)
 {
-	HnswOptions *opts = (HnswOptions *) index->rd_options;
-    
-	if (opts){
-		FILE* file = fopen("/root/pqfile.pth", "r");
-		if(file == NULL){
+	HnswOptions *opts = (HnswOptions *)index->rd_options;
+
+	if (opts)
+	{
+		FILE *file = fopen("/root/pqfile.pth", "r");
+		if (file == NULL)
+		{
 			elog(INFO, "pq config file not exist\n");
 		}
-		fseek(file, 0, SEEK_END); 
-		size_t length = ftell(file);         
+		fseek(file, 0, SEEK_END);
+		size_t length = ftell(file);
 		fseek(file, 0, SEEK_SET);
-		char*buffer = (char *)palloc(length + 1);
+		char *buffer = (char *)palloc(length + 1);
 		fread(buffer, 1, length, file);
 		buffer[length] = '\0';
-    	opts->pq_dist_file_name = buffer;
+		opts->pq_dist_file_name = buffer;
 		return opts->pq_dist_file_name;
 	}
 	return NULL;
@@ -184,37 +185,36 @@ const char* HnswGetPQDistFileName(Relation index)
 /*
  * Get the size of the dynamic candidate list in the index
  */
-int
-HnswGetEfConstruction(Relation index)
+int HnswGetEfConstruction(Relation index)
 {
-	HnswOptions *opts = (HnswOptions *) index->rd_options;
+	HnswOptions *opts = (HnswOptions *)index->rd_options;
 
 	if (opts)
 		return opts->efConstruction;
 
 	return HNSW_DEFAULT_EF_CONSTRUCTION;
 }
-PQDist* HnswGetPQDist(Relation index)
+PQDist *HnswGetPQDist(Relation index)
 {
-	if(index == NULL)
-	return NULL;
-	HnswOptions *opts = (HnswOptions *) index->rd_options;
-	
-	if (opts){
+	if (index == NULL)
+		return NULL;
+	HnswOptions *opts = (HnswOptions *)index->rd_options;
+
+	if (opts)
+	{
 		return opts->pqdist;
 	}
 	return NULL;
 }
-void HnswSetPQDist(Relation index, const char* pq_dist_file_name)
+void HnswSetPQDist(Relation index, const char *pq_dist_file_name)
 {
-	HnswOptions *opts = (HnswOptions *) index->rd_options;
-	
-	if (opts){
-		opts->pqdist = (PQDist*)palloc(sizeof(PQDist));
-		PQDist_load(opts->pqdist, pq_dist_file_name);
-		
-	}
+	HnswOptions *opts = (HnswOptions *)index->rd_options;
 
+	if (opts)
+	{
+		opts->pqdist = (PQDist *)palloc(sizeof(PQDist));
+		PQDist_load(opts->pqdist, pq_dist_file_name);
+	}
 }
 
 /*
@@ -232,8 +232,7 @@ HnswOptionalProcInfo(Relation index, uint16 procnum)
 /*
  * Normalize value
  */
-Datum
-HnswNormValue(const HnswTypeInfo * typeInfo, Oid collation, Datum value)
+Datum HnswNormValue(const HnswTypeInfo *typeInfo, Oid collation, Datum value)
 {
 	return DirectFunctionCall1Coll(typeInfo->normalize, collation, value);
 }
@@ -241,8 +240,7 @@ HnswNormValue(const HnswTypeInfo * typeInfo, Oid collation, Datum value)
 /*
  * Check if non-zero norm
  */
-bool
-HnswCheckNorm(FmgrInfo *procinfo, Oid collation, Datum value)
+bool HnswCheckNorm(FmgrInfo *procinfo, Oid collation, Datum value)
 {
 	return DatumGetFloat8(FunctionCall1Coll(procinfo, collation, value)) > 0;
 }
@@ -253,7 +251,7 @@ HnswCheckNorm(FmgrInfo *procinfo, Oid collation, Datum value)
 Buffer
 HnswNewBuffer(Relation index, ForkNumber forkNum)
 {
-	Buffer		buf = ReadBufferExtended(index, forkNum, P_NEW, RBM_NORMAL, NULL);
+	Buffer buf = ReadBufferExtended(index, forkNum, P_NEW, RBM_NORMAL, NULL);
 
 	LockBuffer(buf, BUFFER_LOCK_EXCLUSIVE);
 	return buf;
@@ -262,8 +260,7 @@ HnswNewBuffer(Relation index, ForkNumber forkNum)
 /*
  * Init page
  */
-void
-HnswInitPage(Buffer buf, Page page)
+void HnswInitPage(Buffer buf, Page page)
 {
 	PageInit(page, BufferGetPageSize(buf), sizeof(HnswPageOpaqueData));
 	HnswPageGetOpaque(page)->nextblkno = InvalidBlockNumber;
@@ -274,7 +271,7 @@ HnswInitPage(Buffer buf, Page page)
  * Allocate a neighbor array
  */
 static HnswNeighborArray *
-HnswInitNeighborArray(int lm, HnswAllocator * allocator)
+HnswInitNeighborArray(int lm, HnswAllocator *allocator)
 {
 	HnswNeighborArray *a = HnswAlloc(allocator, HNSW_NEIGHBOR_ARRAY_SIZE(lm));
 
@@ -286,11 +283,10 @@ HnswInitNeighborArray(int lm, HnswAllocator * allocator)
 /*
  * Allocate neighbors
  */
-void
-HnswInitNeighbors(char *base, HnswElement element, int m, HnswAllocator * allocator)
+void HnswInitNeighbors(char *base, HnswElement element, int m, HnswAllocator *allocator)
 {
-	int			level = element->level;
-	HnswNeighborArrayPtr *neighborList = (HnswNeighborArrayPtr *) HnswAlloc(allocator, sizeof(HnswNeighborArrayPtr) * (level + 1));
+	int level = element->level;
+	HnswNeighborArrayPtr *neighborList = (HnswNeighborArrayPtr *)HnswAlloc(allocator, sizeof(HnswNeighborArrayPtr) * (level + 1));
 
 	HnswPtrStore(base, element->neighbors, neighborList);
 
@@ -302,10 +298,10 @@ HnswInitNeighbors(char *base, HnswElement element, int m, HnswAllocator * alloca
  * Allocate memory from the allocator
  */
 void *
-HnswAlloc(HnswAllocator * allocator, Size size)
+HnswAlloc(HnswAllocator *allocator, Size size)
 {
 	if (allocator)
-		return (*(allocator)->alloc) (size, (allocator)->state);
+		return (*(allocator)->alloc)(size, (allocator)->state);
 
 	return palloc(size);
 }
@@ -314,13 +310,12 @@ HnswAlloc(HnswAllocator * allocator, Size size)
  * Allocate an element
  */
 HnswElement
-HnswInitElement(char *base, ItemPointer heaptid, int m, double ml, int maxLevel, int use_pq, HnswAllocator * allocator, PQDist* pqdist)
+HnswInitElement(char *base, ItemPointer heaptid, int m, double ml, int maxLevel, int use_pq, HnswAllocator *allocator, PQDist *pqdist)
 {
 
-    
 	HnswElement element = HnswAlloc(allocator, sizeof(HnswElementData));
 
-	int			level = (int) (-log(RandomDouble()) * ml);
+	int level = (int)(-log(RandomDouble()) * ml);
 
 	/* Cap level */
 	if (level > maxLevel)
@@ -334,18 +329,16 @@ HnswInitElement(char *base, ItemPointer heaptid, int m, double ml, int maxLevel,
 
 	HnswInitNeighbors(base, element, m, allocator);
 
-	HnswPtrStore(base, element->value, (Pointer) NULL);
-    //elog(INFO, "开始导入encode data\n");
-	if(use_pq){
+	HnswPtrStore(base, element->value, (Pointer)NULL);
+	// elog(INFO, "开始导入encode data\n");
+	if (use_pq)
+	{
 		element->id = pqdist->tuple_id++;
-		//elog(INFO, "id:%d", element->id);
-		//element->encoded_data = (Encode_Data*)HnswAlloc(allocator, sizeof(Encode_Data));
-		//element->encoded_data->length = pqdist->code_nums;
-		//element->encoded_data->data = pqdist->codes + (heaptid->ip_posid - 1) * pqdist->code_nums / sizeof(uint8_t);
-
+		// elog(INFO, "id:%d", element->id);
+		// element->encoded_data = (Encode_Data*)HnswAlloc(allocator, sizeof(Encode_Data));
+		// element->encoded_data->length = pqdist->code_nums;
+		// element->encoded_data->data = pqdist->codes + (heaptid->ip_posid - 1) * pqdist->code_nums / sizeof(uint8_t);
 	}
-	
-    
 
 	return element;
 }
@@ -353,8 +346,7 @@ HnswInitElement(char *base, ItemPointer heaptid, int m, double ml, int maxLevel,
 /*
  * Add a heap TID to an element
  */
-void
-HnswAddHeapTid(HnswElement element, ItemPointer heaptid)
+void HnswAddHeapTid(HnswElement element, ItemPointer heaptid)
 {
 	element->heaptids[element->heaptidsLength++] = *heaptid;
 }
@@ -366,23 +358,22 @@ HnswElement
 HnswInitElementFromBlock(BlockNumber blkno, OffsetNumber offno)
 {
 	HnswElement element = palloc(sizeof(HnswElementData));
-	char	   *base = NULL;
+	char *base = NULL;
 
 	element->blkno = blkno;
 	element->offno = offno;
-	HnswPtrStore(base, element->neighbors, (HnswNeighborArrayPtr *) NULL);
-	HnswPtrStore(base, element->value, (Pointer) NULL);
+	HnswPtrStore(base, element->neighbors, (HnswNeighborArrayPtr *)NULL);
+	HnswPtrStore(base, element->value, (Pointer)NULL);
 	return element;
 }
 
 /*
  * Get the metapage info
  */
-void
-HnswGetMetaPageInfo(Relation index, int *m, HnswElement * entryPoint)
+void HnswGetMetaPageInfo(Relation index, int *m, HnswElement *entryPoint)
 {
-	Buffer		buf;
-	Page		page;
+	Buffer buf;
+	Page page;
 	HnswMetaPage metap;
 
 	buf = ReadBuffer(index, HNSW_METAPAGE_BLKNO);
@@ -454,11 +445,10 @@ HnswUpdateMetaPageInfo(Page page, int updateEntry, HnswElement entryPoint, Block
 /*
  * Update the metapage
  */
-void
-HnswUpdateMetaPage(Relation index, int updateEntry, HnswElement entryPoint, BlockNumber insertPage, ForkNumber forkNum, bool building)
+void HnswUpdateMetaPage(Relation index, int updateEntry, HnswElement entryPoint, BlockNumber insertPage, ForkNumber forkNum, bool building)
 {
-	Buffer		buf;
-	Page		page;
+	Buffer buf;
+	Page page;
 	GenericXLogState *state;
 
 	buf = ReadBufferExtended(index, forkNum, HNSW_METAPAGE_BLKNO, RBM_NORMAL, NULL);
@@ -486,10 +476,9 @@ HnswUpdateMetaPage(Relation index, int updateEntry, HnswElement entryPoint, Bloc
 /*
  * Set element tuple, except for neighbor info
  */
-void
-HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element)
+void HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element)
 {
-	Pointer		valuePtr = HnswPtrAccess(base, element->value);
+	Pointer valuePtr = HnswPtrAccess(base, element->value);
 
 	etup->type = HNSW_ELEMENT_TUPLE_TYPE;
 	etup->level = element->level;
@@ -508,17 +497,17 @@ HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element)
 /*
  * Set neighbor tuple
  */
-void
-HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int m)
+void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int m, int use_pq, PQDist *pqdist)
 {
-	int			idx = 0;
+
+	int idx = 0;
 
 	ntup->type = HNSW_NEIGHBOR_TUPLE_TYPE;
 
 	for (int lc = e->level; lc >= 0; lc--)
 	{
 		HnswNeighborArray *neighbors = HnswGetNeighbors(base, e, lc);
-		int			lm = HnswGetLayerM(m, lc);
+		int lm = HnswGetLayerM(m, lc);
 
 		for (int i = 0; i < lm; i++)
 		{
@@ -535,20 +524,53 @@ HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int m)
 				ItemPointerSetInvalid(indextid);
 		}
 	}
-
 	ntup->count = idx;
+	if (use_pq)
+	{
+		uint8_t *encode_data = get_centroids_id(pqdist, e->id);
+		void *pq_start = (void *)(ntup->indextids + idx);
+		void *pq_store;
+
+		memcpy(pq_start, encode_data, pqdist->code_nums);
+
+		idx = 0;
+		int lc = 0;
+
+		HnswNeighborArray *neighbors = HnswGetNeighbors(base, e, lc);
+		int lm = HnswGetLayerM(m, lc);
+
+		for (int i = 0; i < lm; i++)
+		{
+			pq_store = pq_start + pqdist->code_nums * (idx + 1);
+			idx += 1;
+			if (i < neighbors->length)
+			{
+
+				HnswCandidate *hc = &neighbors->items[i];
+				HnswElement hce = HnswPtrAccess(base, hc->element);
+				encode_data = get_centroids_id(pqdist, hce->id);
+				memcpy(pq_store, encode_data, pqdist->code_nums);
+			}
+			else
+			{
+				memset(pq_store, 0, pqdist->code_nums);
+			}
+		}
+	}
 }
 
 /*
  * Load neighbors from page
  */
 static void
-LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m)
+LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int use_pq, int pq_m)
 {
-	char	   *base = NULL;
+	elog(INFO, "load neighbors from page");
+	elog(INFO, "element->level:%d", element->level);
+	char *base = NULL;
 
-	HnswNeighborTuple ntup = (HnswNeighborTuple) PageGetItem(page, PageGetItemId(page, element->neighborOffno));
-	int			neighborCount = (element->level + 2) * m;
+	HnswNeighborTuple ntup = (HnswNeighborTuple)PageGetItem(page, PageGetItemId(page, element->neighborOffno));
+	int neighborCount = (element->level + 2) * m;
 
 	Assert(HnswIsNeighborTuple(ntup));
 
@@ -557,29 +579,44 @@ LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m)
 	/* Ensure expected neighbors */
 	if (ntup->count != neighborCount)
 		return;
+	elog(INFO, "aaaaaa");
+	void *pq_store = (void *)(ntup->indextids + ntup->count) + pq_m;
+	elog(INFO, "bbbbbb");
 
 	for (int i = 0; i < neighborCount; i++)
 	{
 		HnswElement e;
-		int			level;
+		int level;
 		HnswCandidate *hc;
 		ItemPointer indextid;
 		HnswNeighborArray *neighbors;
 
 		indextid = &ntup->indextids[i];
-
-		if (!ItemPointerIsValid(indextid))
-			continue;
-
-		e = HnswInitElementFromBlock(ItemPointerGetBlockNumber(indextid), ItemPointerGetOffsetNumber(indextid));
-
-		/* Calculate level based on offset */
 		level = element->level - i / m;
 		if (level < 0)
 			level = 0;
 
+		if (!ItemPointerIsValid(indextid))
+		{
+			if(use_pq && level == 0)
+				pq_store += pq_m;
+			continue;
+		}
+
+		e = HnswInitElementFromBlock(ItemPointerGetBlockNumber(indextid), ItemPointerGetOffsetNumber(indextid));
+
+		/* Calculate level based on offset */
+
 		neighbors = HnswGetNeighbors(base, element, level);
 		hc = &neighbors->items[neighbors->length++];
+		if (use_pq && level == 0)
+		{
+			Encode_Data *encode_data = (Encode_Data *)palloc(offsetof(Encode_Data, data) + pq_m);
+			encode_data->length = pq_m;
+			elog(INFO, "encode_data->length:%d", pq_m);
+			memcpy(encode_data->data, pq_store, pq_m);
+			e->encode_data = encode_data;
+		}
 		HnswPtrStore(base, hc->element, e);
 	}
 }
@@ -587,17 +624,21 @@ LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m)
 /*
  * Load neighbors
  */
-void
-HnswLoadNeighbors(HnswElement element, Relation index, int m)
+void HnswLoadNeighbors(HnswElement element, Relation index, int m)
 {
-	Buffer		buf;
-	Page		page;
+	elog(INFO, "load neighbors");
+	elog(INFO, "element->neighborPage:%d", element->neighborPage);
+	elog(INFO, "element->lc:%d", element->level);
+	Buffer buf;
+	Page page;
 
 	buf = ReadBuffer(index, element->neighborPage);
 	LockBuffer(buf, BUFFER_LOCK_SHARE);
 	page = BufferGetPage(buf);
+	int use_pq = HnswGetUsePQ(index);
+	int pq_m = HnswGetPqM(index);
 
-	LoadNeighborsFromPage(element, index, page, m);
+	LoadNeighborsFromPage(element, index, page, m, use_pq, pq_m);
 
 	UnlockReleaseBuffer(buf);
 }
@@ -605,8 +646,7 @@ HnswLoadNeighbors(HnswElement element, Relation index, int m)
 /*
  * Load an element from a tuple
  */
-void
-HnswLoadElementFromTuple(HnswElement element, HnswElementTuple etup, bool loadHeaptids, bool loadVec)
+void HnswLoadElementFromTuple(HnswElement element, HnswElementTuple etup, bool loadHeaptids, bool loadVec)
 {
 	element->level = etup->level;
 	element->deleted = etup->deleted;
@@ -629,8 +669,8 @@ HnswLoadElementFromTuple(HnswElement element, HnswElementTuple etup, bool loadHe
 
 	if (loadVec)
 	{
-		char	   *base = NULL;
-		Datum		value = datumCopy(PointerGetDatum(&etup->data), false, -1);
+		char *base = NULL;
+		Datum value = datumCopy(PointerGetDatum(&etup->data), false, -1);
 
 		HnswPtrStore(base, element->value, DatumGetPointer(value));
 	}
@@ -639,12 +679,11 @@ HnswLoadElementFromTuple(HnswElement element, HnswElementTuple etup, bool loadHe
 /*
  * Load an element and optionally get its distance from q
  */
-void
-HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec, float *maxDistance, int use_pq, PQDist* pqdist)
+void HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec, float *maxDistance, int use_pq, PQDist *pqdist)
 {
-	
-	Buffer		buf;
-	Page		page;
+
+	Buffer buf;
+	Page page;
 	HnswElementTuple etup;
 
 	/* Read vector */
@@ -652,7 +691,7 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 	LockBuffer(buf, BUFFER_LOCK_SHARE);
 	page = BufferGetPage(buf);
 
-	etup = (HnswElementTuple) PageGetItem(page, PageGetItemId(page, element->offno));
+	etup = (HnswElementTuple)PageGetItem(page, PageGetItemId(page, element->offno));
 
 	Assert(HnswIsElementTuple(etup));
 
@@ -661,8 +700,8 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 	{
 		if (DatumGetPointer(*q) == NULL)
 			*distance = 0;
-		else if(!use_pq)
-			*distance = (float) DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
+		else if (!use_pq)
+			*distance = (float)DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
 		else
 			*distance = (float)calc_dist_pq_loaded_simd(pqdist, etup->id);
 	}
@@ -678,12 +717,13 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
  * Get the distance for a candidate
  */
 static float
-GetCandidateDistance(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo, Oid collation, bool use_pq, PQDist* pqdist)
+GetCandidateDistance(char *base, HnswCandidate *hc, Datum q, FmgrInfo *procinfo, Oid collation, bool use_pq, PQDist *pqdist)
 {
 
 	HnswElement hce = HnswPtrAccess(base, hc->element);
-	Datum		value = HnswGetValue(base, hce);
-    if(!use_pq){
+	Datum value = HnswGetValue(base, hce);
+	if (!use_pq)
+	{
 
 		return DatumGetFloat8(FunctionCall2Coll(procinfo, collation, q, value));
 	}
@@ -691,9 +731,8 @@ GetCandidateDistance(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo
 	float distance = 0;
 	distance = calc_dist_pq_loaded_simd(pqdist, hce->id);
 	return distance;
-
 }
-/* static float 
+/* static float
 GetCandidateDistancePQ(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procinfo, Oid collation, PQDist* pqdist)
 {
 	HnswElement hce = HnswPtrAccess(base, hc->element);
@@ -703,19 +742,17 @@ GetCandidateDistancePQ(char *base, HnswCandidate * hc, Datum q, FmgrInfo *procin
 
 	Encode_Data* encode_data = hce->encoded_data;
 	distance = calc_dist_pq_loaded_simd(encode_data->data, hce->heaptids[0].ip_posid - 1);
-	
+
 	return distance;
 } */
 /*
  * Create a candidate for the entry point
  */
 HnswCandidate *
-HnswEntryCandidate(char *base, HnswElement entryPoint, Datum q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec, int use_pq, PQDist* pqdist)
+HnswEntryCandidate(char *base, HnswElement entryPoint, Datum q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec, int use_pq, PQDist *pqdist)
 {
 
 	HnswCandidate *hc = palloc(sizeof(HnswCandidate));
-
-
 
 	HnswPtrStore(base, hc->element, entryPoint);
 	if (index == NULL)
@@ -731,10 +768,10 @@ HnswEntryCandidate(char *base, HnswElement entryPoint, Datum q, Relation index, 
 static int
 CompareNearestCandidates(const pairingheap_node *a, const pairingheap_node *b, void *arg)
 {
-	if (((const HnswPairingHeapNode *) a)->inner->distance < ((const HnswPairingHeapNode *) b)->inner->distance)
+	if (((const HnswPairingHeapNode *)a)->inner->distance < ((const HnswPairingHeapNode *)b)->inner->distance)
 		return 1;
 
-	if (((const HnswPairingHeapNode *) a)->inner->distance > ((const HnswPairingHeapNode *) b)->inner->distance)
+	if (((const HnswPairingHeapNode *)a)->inner->distance > ((const HnswPairingHeapNode *)b)->inner->distance)
 		return -1;
 
 	return 0;
@@ -746,10 +783,10 @@ CompareNearestCandidates(const pairingheap_node *a, const pairingheap_node *b, v
 static int
 CompareFurthestCandidates(const pairingheap_node *a, const pairingheap_node *b, void *arg)
 {
-	if (((const HnswPairingHeapNode *) a)->inner->distance < ((const HnswPairingHeapNode *) b)->inner->distance)
+	if (((const HnswPairingHeapNode *)a)->inner->distance < ((const HnswPairingHeapNode *)b)->inner->distance)
 		return -1;
 
-	if (((const HnswPairingHeapNode *) a)->inner->distance > ((const HnswPairingHeapNode *) b)->inner->distance)
+	if (((const HnswPairingHeapNode *)a)->inner->distance > ((const HnswPairingHeapNode *)b)->inner->distance)
 		return 1;
 
 	return 0;
@@ -759,7 +796,7 @@ CompareFurthestCandidates(const pairingheap_node *a, const pairingheap_node *b, 
  * Create a pairing heap node for a candidate
  */
 static HnswPairingHeapNode *
-CreatePairingHeapNode(HnswCandidate * c)
+CreatePairingHeapNode(HnswCandidate *c)
 {
 	HnswPairingHeapNode *node = palloc(sizeof(HnswPairingHeapNode));
 
@@ -771,7 +808,7 @@ CreatePairingHeapNode(HnswCandidate * c)
  * Init visited
  */
 static inline void
-InitVisited(char *base, visited_hash * v, Relation index, int ef, int m)
+InitVisited(char *base, visited_hash *v, Relation index, int ef, int m)
 {
 	if (index != NULL)
 		v->tids = tidhash_create(CurrentMemoryContext, ef * m * 2, NULL);
@@ -785,7 +822,7 @@ InitVisited(char *base, visited_hash * v, Relation index, int ef, int m)
  * Add to visited
  */
 static inline void
-AddToVisited(char *base, visited_hash * v, HnswCandidate * hc, Relation index, bool *found)
+AddToVisited(char *base, visited_hash *v, HnswCandidate *hc, Relation index, bool *found)
 {
 	if (index != NULL)
 	{
@@ -810,9 +847,9 @@ AddToVisited(char *base, visited_hash * v, HnswCandidate * hc, Relation index, b
 #if PG_VERSION_NUM >= 130000
 		HnswElement element = HnswPtrAccess(base, hc->element);
 
-		pointerhash_insert_hash(v->pointers, (uintptr_t) HnswPtrPointer(hc->element), element->hash, found);
+		pointerhash_insert_hash(v->pointers, (uintptr_t)HnswPtrPointer(hc->element), element->hash, found);
 #else
-		pointerhash_insert(v->pointers, (uintptr_t) HnswPtrPointer(hc->element), found);
+		pointerhash_insert(v->pointers, (uintptr_t)HnswPtrPointer(hc->element), found);
 #endif
 	}
 }
@@ -821,7 +858,7 @@ AddToVisited(char *base, visited_hash * v, HnswCandidate * hc, Relation index, b
  * Count element towards ef
  */
 static inline bool
-CountElement(char *base, HnswElement skipElement, HnswCandidate * hc)
+CountElement(char *base, HnswElement skipElement, HnswCandidate *hc)
 {
 	HnswElement e;
 
@@ -839,23 +876,23 @@ CountElement(char *base, HnswElement skipElement, HnswCandidate * hc)
  * Algorithm 2 from paper
  */
 List *
-HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement, int use_pq, PQDist* pqdist, bool is_search_knn)
+HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, FmgrInfo *procinfo, Oid collation, int m, bool inserting, HnswElement skipElement, int use_pq, PQDist *pqdist, bool is_search_knn)
 {
-	
-	//不在最底层不使用pq
-	if(lc != 0 || !is_search_knn){
+
+	// 不在最底层不使用pq
+	if (lc != 0 || !is_search_knn)
+	{
 		use_pq = 0;
 	}
-	
-	List	   *w = NIL;
+
+	List *w = NIL;
 	pairingheap *C = pairingheap_allocate(CompareNearestCandidates, NULL);
 	pairingheap *W = pairingheap_allocate(CompareFurthestCandidates, NULL);
-	int			wlen = 0;
+	int wlen = 0;
 	visited_hash v;
-	ListCell   *lc2;
+	ListCell *lc2;
 	HnswNeighborArray *neighborhoodData = NULL;
-	Size		neighborhoodSize = 0;
-    
+	Size neighborhoodSize = 0;
 
 	InitVisited(base, &v, index, ef, m);
 
@@ -867,10 +904,10 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 	}
 
 	/* Add entry points to v, C, and W */
-	foreach(lc2, ep)
+	foreach (lc2, ep)
 	{
-		HnswCandidate *hc = (HnswCandidate *) lfirst(lc2);
-		bool		found;
+		HnswCandidate *hc = (HnswCandidate *)lfirst(lc2);
+		bool found;
 
 		AddToVisited(base, &v, hc, index, &found);
 
@@ -889,8 +926,8 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 	while (!pairingheap_is_empty(C))
 	{
 		HnswNeighborArray *neighborhood;
-		HnswCandidate *c = ((HnswPairingHeapNode *) pairingheap_remove_first(C))->inner;
-		HnswCandidate *f = ((HnswPairingHeapNode *) pairingheap_first(W))->inner;
+		HnswCandidate *c = ((HnswPairingHeapNode *)pairingheap_remove_first(C))->inner;
+		HnswCandidate *f = ((HnswPairingHeapNode *)pairingheap_first(W))->inner;
 		HnswElement cElement;
 
 		if (c->distance > f->distance)
@@ -916,22 +953,36 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 		for (int i = 0; i < neighborhood->length; i++)
 		{
 			HnswCandidate *e = &neighborhood->items[i];
-			bool		visited;
+			bool visited;
 
 			AddToVisited(base, &v, e, index, &visited);
 
 			if (!visited)
 			{
-				float		eDistance;
+				float eDistance;
 				HnswElement eElement = HnswPtrAccess(base, e->element);
-				bool		alwaysAdd = wlen < ef;
+				bool alwaysAdd = wlen < ef;
 
-				f = ((HnswPairingHeapNode *) pairingheap_first(W))->inner;
-
-				if (index == NULL)
-					eDistance = GetCandidateDistance(base, e, q, procinfo, collation, use_pq, pqdist);
+				f = ((HnswPairingHeapNode *)pairingheap_first(W))->inner;
+				if (lc > 0)
+				{
+					if (index == NULL)
+						eDistance = GetCandidateDistance(base, e, q, procinfo, collation, use_pq, pqdist);
+					else
+						HnswLoadElement(eElement, &eDistance, &q, index, procinfo, collation, inserting, alwaysAdd ? NULL : &f->distance, use_pq, pqdist);
+				}
 				else
-					HnswLoadElement(eElement, &eDistance, &q, index, procinfo, collation, inserting, alwaysAdd ? NULL : &f->distance, use_pq, pqdist);
+				{
+
+					if (index == NULL)
+						eDistance = GetCandidateDistance(base, e, q, procinfo, collation, use_pq, pqdist);
+					else
+					{
+						elog(INFO, "yyyyy");
+						eDistance = calc_dist_pq_loaded_by_id(pqdist, eElement->encode_data->data + pqdist->code_nums * i);
+						elog(INFO, "distance:%f", eDistance);
+					}
+				}
 
 				if (eDistance < f->distance || alwaysAdd)
 				{
@@ -971,39 +1022,37 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 
 	if (lc == 0 && use_pq)
 	{
-		List	   *realDistanceCandidates = NIL;
+		List *realDistanceCandidates = NIL;
 
 		while (!pairingheap_is_empty(W))
 		{
-			HnswCandidate *hc = ((HnswPairingHeapNode *) pairingheap_remove_first(W))->inner;
+			HnswCandidate *hc = ((HnswPairingHeapNode *)pairingheap_remove_first(W))->inner;
 			realDistanceCandidates = lappend(realDistanceCandidates, hc);
 		}
-		
+
 		foreach (lc2, realDistanceCandidates)
 		{
-			
-			HnswCandidate *hc = (HnswCandidate *) lfirst(lc2);
-			float		realDistance;
-			if(index == NULL)
+
+			HnswCandidate *hc = (HnswCandidate *)lfirst(lc2);
+			float realDistance;
+			if (index == NULL)
 				realDistance = GetCandidateDistance(base, hc, q, procinfo, collation, 0, NULL);
 			else
 				HnswLoadElement(HnswPtrAccess(base, hc->element), &realDistance, &q, index, procinfo, collation, inserting, NULL, 0, NULL);
 			hc->distance = realDistance;
-			
+
 			pairingheap_add(W, &(CreatePairingHeapNode(hc)->ph_node));
 		}
 	}
-	
 
 	/* Add each element of W to w */
 	while (!pairingheap_is_empty(W))
 	{
-		HnswCandidate *hc = ((HnswPairingHeapNode *) pairingheap_remove_first(W))->inner;
+		HnswCandidate *hc = ((HnswPairingHeapNode *)pairingheap_remove_first(W))->inner;
 
 		w = lappend(w, hc);
 	}
-	
-    
+
 	return w;
 }
 
@@ -1019,8 +1068,8 @@ CompareCandidateDistances(const ListCell *a, const ListCell *b)
 #else
 CompareCandidateDistances(const void *a, const void *b)
 {
-	HnswCandidate *hca = lfirst(*(ListCell **) a);
-	HnswCandidate *hcb = lfirst(*(ListCell **) b);
+	HnswCandidate *hca = lfirst(*(ListCell **)a);
+	HnswCandidate *hcb = lfirst(*(ListCell **)b);
 #endif
 
 	if (hca->distance < hcb->distance)
@@ -1050,8 +1099,8 @@ CompareCandidateDistancesOffset(const ListCell *a, const ListCell *b)
 #else
 CompareCandidateDistancesOffset(const void *a, const void *b)
 {
-	HnswCandidate *hca = lfirst(*(ListCell **) a);
-	HnswCandidate *hcb = lfirst(*(ListCell **) b);
+	HnswCandidate *hca = lfirst(*(ListCell **)a);
+	HnswCandidate *hcb = lfirst(*(ListCell **)b);
 #endif
 
 	if (hca->distance < hcb->distance)
@@ -1076,8 +1125,8 @@ static float
 HnswGetDistance(char *base, HnswElement a, HnswElement b, FmgrInfo *procinfo, Oid collation)
 {
 
-	Datum		aValue = HnswGetValue(base, a);
-	Datum		bValue = HnswGetValue(base, b);
+	Datum aValue = HnswGetValue(base, a);
+	Datum bValue = HnswGetValue(base, b);
 
 	return DatumGetFloat8(FunctionCall2Coll(procinfo, collation, aValue, bValue));
 }
@@ -1086,16 +1135,16 @@ HnswGetDistance(char *base, HnswElement a, HnswElement b, FmgrInfo *procinfo, Oi
  * Check if an element is closer to q than any element from R
  */
 static bool
-CheckElementCloser(char *base, HnswCandidate * e, List *r, FmgrInfo *procinfo, Oid collation)
+CheckElementCloser(char *base, HnswCandidate *e, List *r, FmgrInfo *procinfo, Oid collation)
 {
 	HnswElement eElement = HnswPtrAccess(base, e->element);
-	ListCell   *lc2;
+	ListCell *lc2;
 
-	foreach(lc2, r)
+	foreach (lc2, r)
 	{
 		HnswCandidate *ri = lfirst(lc2);
 		HnswElement riElement = HnswPtrAccess(base, ri->element);
-		float		distance = HnswGetDistance(base, eElement, riElement, procinfo, collation);
+		float distance = HnswGetDistance(base, eElement, riElement, procinfo, collation);
 
 		if (distance <= e->distance)
 			return false;
@@ -1108,17 +1157,17 @@ CheckElementCloser(char *base, HnswCandidate * e, List *r, FmgrInfo *procinfo, O
  * Algorithm 4 from paper
  */
 static List *
-SelectNeighbors(char *base, List *c, int lm, int lc, FmgrInfo *procinfo, Oid collation, HnswElement e2, HnswCandidate * newCandidate, HnswCandidate * *pruned, bool sortCandidates)
+SelectNeighbors(char *base, List *c, int lm, int lc, FmgrInfo *procinfo, Oid collation, HnswElement e2, HnswCandidate *newCandidate, HnswCandidate **pruned, bool sortCandidates)
 {
-	List	   *r = NIL;
-	List	   *w = list_copy(c);
+	List *r = NIL;
+	List *w = list_copy(c);
 	HnswCandidate **wd;
-	int			wdlen = 0;
-	int			wdoff = 0;
+	int wdlen = 0;
+	int wdoff = 0;
 	HnswNeighborArray *neighbors = HnswGetNeighbors(base, e2, lc);
-	bool		mustCalculate = !neighbors->closerSet;
-	List	   *added = NIL;
-	bool		removedAny = false;
+	bool mustCalculate = !neighbors->closerSet;
+	List *added = NIL;
+	bool removedAny = false;
 
 	if (list_length(w) <= lm)
 		return w;
@@ -1217,24 +1266,23 @@ SelectNeighbors(char *base, List *c, int lm, int lc, FmgrInfo *procinfo, Oid col
 static void
 AddConnections(char *base, HnswElement element, List *neighbors, int lc)
 {
-	ListCell   *lc2;
+	ListCell *lc2;
 	HnswNeighborArray *a = HnswGetNeighbors(base, element, lc);
 
-	foreach(lc2, neighbors)
-		a->items[a->length++] = *((HnswCandidate *) lfirst(lc2));
+	foreach (lc2, neighbors)
+		a->items[a->length++] = *((HnswCandidate *)lfirst(lc2));
 }
 
 /*
  * Update connections
  */
-void
-HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm, int lc, int *updateIdx, Relation index, FmgrInfo *procinfo, Oid collation)
+void HnswUpdateConnection(char *base, HnswElement element, HnswCandidate *hc, int lm, int lc, int *updateIdx, Relation index, FmgrInfo *procinfo, Oid collation)
 {
 	HnswElement hce = HnswPtrAccess(base, hc->element);
 	HnswNeighborArray *currentNeighbors = HnswGetNeighbors(base, hce, lc);
 	HnswCandidate hc2;
-    //bool use_pq = HnswGetUsePQ(index);
-	//PQDist* pqdist = HnswGetPQDist(index);
+	// bool use_pq = HnswGetUsePQ(index);
+	// PQDist* pqdist = HnswGetPQDist(index);
 	HnswPtrStore(base, hc2.element, element);
 	hc2.distance = hc->distance;
 
@@ -1254,7 +1302,7 @@ HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm
 		/* Load elements on insert */
 		if (index != NULL)
 		{
-			Datum		q = HnswGetValue(base, hce);
+			Datum q = HnswGetValue(base, hce);
 
 			for (int i = 0; i < currentNeighbors->length; i++)
 			{
@@ -1277,7 +1325,7 @@ HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm
 
 		if (pruned == NULL)
 		{
-			List	   *c = NIL;
+			List *c = NIL;
 
 			/* Add candidates */
 			for (int i = 0; i < currentNeighbors->length; i++)
@@ -1314,15 +1362,15 @@ HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm
 static List *
 RemoveElements(char *base, List *w, HnswElement skipElement)
 {
-	ListCell   *lc2;
-	List	   *w2 = NIL;
+	ListCell *lc2;
+	List *w2 = NIL;
 
 	/* Ensure does not access heaptidsLength during in-memory build */
 	pg_memory_barrier();
 
-	foreach(lc2, w)
+	foreach (lc2, w)
 	{
-		HnswCandidate *hc = (HnswCandidate *) lfirst(lc2);
+		HnswCandidate *hc = (HnswCandidate *)lfirst(lc2);
 		HnswElement hce = HnswPtrAccess(base, hc->element);
 
 		/* Skip self for vacuuming update */
@@ -1348,7 +1396,7 @@ PrecomputeHash(char *base, HnswElement element)
 	HnswPtrStore(base, ptr, element);
 
 	if (base == NULL)
-		element->hash = hash_pointer((uintptr_t) HnswPtrPointer(ptr));
+		element->hash = hash_pointer((uintptr_t)HnswPtrPointer(ptr));
 	else
 		element->hash = hash_offset(HnswPtrOffset(ptr));
 }
@@ -1357,8 +1405,7 @@ PrecomputeHash(char *base, HnswElement element)
 /*
  * Algorithm 1 from paper
  */
-void
-HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, int use_pq, PQDist* pqdist, bool existing)
+void HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint, Relation index, FmgrInfo *procinfo, Oid collation, int m, int efConstruction, int use_pq, PQDist *pqdist, bool existing)
 {
 
 	Datum value = HnswGetValue(base, element);
@@ -1368,13 +1415,13 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 	if(use_pq)
 	load_query_data_and_cache(pqdist, query); */
 
-	List	   *ep;
-	List	   *w;
+	List *ep;
+	List *w;
 
-	int			level = element->level;
+	int level = element->level;
 
-	int			entryLevel;
-	Datum		q = HnswGetValue(base, element);
+	int entryLevel;
+	Datum q = HnswGetValue(base, element);
 
 	HnswElement skipElement = existing ? element : NULL;
 
@@ -1385,10 +1432,10 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 #endif
 
 	/* No neighbors if no entry point */
-	if (entryPoint == NULL){
+	if (entryPoint == NULL)
+	{
 		return;
 	}
-		
 
 	/* Get entry point and level */
 	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, true, use_pq, pqdist));
@@ -1412,9 +1459,9 @@ HnswFindElementNeighbors(char *base, HnswElement element, HnswElement entryPoint
 	/* 2nd phase */
 	for (int lc = level; lc >= 0; lc--)
 	{
-		int			lm = HnswGetLayerM(m, lc);
-		List	   *neighbors;
-		List	   *lw;
+		int lm = HnswGetLayerM(m, lc);
+		List *neighbors;
+		List *lw;
 
 		w = HnswSearchLayer(base, q, ep, efConstruction, lc, index, procinfo, collation, m, true, skipElement, use_pq, pqdist, false);
 
@@ -1445,7 +1492,7 @@ PGDLLEXPORT Datum sparsevec_l2_normalize(PG_FUNCTION_ARGS);
 static void
 SparsevecCheckValue(Pointer v)
 {
-	SparseVector *vec = (SparseVector *) v;
+	SparseVector *vec = (SparseVector *)v;
 
 	if (vec->nnz > HNSW_MAX_NNZ)
 		elog(ERROR, "sparsevec cannot have more than %d non-zero elements for hnsw index", HNSW_MAX_NNZ);
@@ -1454,263 +1501,317 @@ SparsevecCheckValue(Pointer v)
 /*
  * Get type info
  */
-const		HnswTypeInfo *
+const HnswTypeInfo *
 HnswGetTypeInfo(Relation index)
 {
-	FmgrInfo   *procinfo = HnswOptionalProcInfo(index, HNSW_TYPE_INFO_PROC);
+	FmgrInfo *procinfo = HnswOptionalProcInfo(index, HNSW_TYPE_INFO_PROC);
 
 	if (procinfo == NULL)
 	{
 		static const HnswTypeInfo typeInfo = {
 			.maxDimensions = HNSW_MAX_DIM,
 			.normalize = l2_normalize,
-			.checkValue = NULL
-		};
+			.checkValue = NULL};
 
 		return (&typeInfo);
 	}
 	else
-		return (const HnswTypeInfo *) DatumGetPointer(FunctionCall0Coll(procinfo, InvalidOid));
+		return (const HnswTypeInfo *)DatumGetPointer(FunctionCall0Coll(procinfo, InvalidOid));
 }
 
 FUNCTION_PREFIX PG_FUNCTION_INFO_V1(hnsw_halfvec_support);
-Datum
-hnsw_halfvec_support(PG_FUNCTION_ARGS)
+Datum hnsw_halfvec_support(PG_FUNCTION_ARGS)
 {
 	static const HnswTypeInfo typeInfo = {
 		.maxDimensions = HNSW_MAX_DIM * 2,
 		.normalize = halfvec_l2_normalize,
-		.checkValue = NULL
-	};
+		.checkValue = NULL};
 
 	PG_RETURN_POINTER(&typeInfo);
 };
 
 FUNCTION_PREFIX PG_FUNCTION_INFO_V1(hnsw_bit_support);
-Datum
-hnsw_bit_support(PG_FUNCTION_ARGS)
+Datum hnsw_bit_support(PG_FUNCTION_ARGS)
 {
 	static const HnswTypeInfo typeInfo = {
 		.maxDimensions = HNSW_MAX_DIM * 32,
 		.normalize = NULL,
-		.checkValue = NULL
-	};
+		.checkValue = NULL};
 
 	PG_RETURN_POINTER(&typeInfo);
 };
 
 FUNCTION_PREFIX PG_FUNCTION_INFO_V1(hnsw_sparsevec_support);
-Datum
-hnsw_sparsevec_support(PG_FUNCTION_ARGS)
+Datum hnsw_sparsevec_support(PG_FUNCTION_ARGS)
 {
 	static const HnswTypeInfo typeInfo = {
 		.maxDimensions = SPARSEVEC_MAX_DIM,
 		.normalize = sparsevec_l2_normalize,
-		.checkValue = SparsevecCheckValue
-	};
+		.checkValue = SparsevecCheckValue};
 
 	PG_RETURN_POINTER(&typeInfo);
 };
 
-void pqdist_init(PQDist* pqdist, int _d, int _m, int _nbits)
+void pqdist_init(PQDist *pqdist, int _d, int _m, int _nbits)
 {
-    pqdist->d = _d;
-    pqdist->m = _m;
-    pqdist->nbits = _nbits;
-    pqdist->code_nums = 1 << _nbits;
-    pqdist->d_pq = _d / _m;
-    pqdist->codes = (uint8_t*)malloc(sizeof(uint8_t) * _m * _nbits);
-    pqdist->centroids = (float*)malloc(sizeof(float) * _m * _d);
-    pqdist->pq_dist_cache_data = (float*)malloc(sizeof(float) * _m * pqdist->code_nums);
+	pqdist->d = _d;
+	pqdist->m = _m;
+	pqdist->nbits = _nbits;
+	pqdist->code_nums = 1 << _nbits;
+	pqdist->d_pq = _d / _m;
+	pqdist->codes = (uint8_t *)malloc(sizeof(uint8_t) * _m * _nbits);
+	pqdist->centroids = (float *)malloc(sizeof(float) * _m * _d);
+	pqdist->pq_dist_cache_data = (float *)malloc(sizeof(float) * _m * pqdist->code_nums);
 }
 
-void PQDist_load(PQDist* pq, const char* filename) {
-    FILE* fin = fopen(filename, "rb");
-    if (fin == NULL) {
-        //printf("open %s fail\n", filename);
+void PQDist_load(PQDist *pq, const char *filename)
+{
+	FILE *fin = fopen(filename, "rb");
+	if (fin == NULL)
+	{
+		// printf("open %s fail\n", filename);
 		elog(ERROR, "open %s fail", filename);
-        exit(-1);
-    }
+		exit(-1);
+	}
 
-    int N;
-    fread(&N, sizeof(int), 1, fin);
-    fread(&pq->d, sizeof(int), 1, fin);
-    fread(&pq->m, sizeof(int), 1, fin);
-    fread(&pq->nbits, sizeof(int), 1, fin);
-    elog(INFO, "load: %d %d %d %d", N, pq->d, pq->m, pq->nbits);
-    assert(8 % pq->nbits == 0);
-    pq->code_nums = 1 << pq->nbits;
-    pq->tuple_id = 0;
-    pq->d_pq = pq->d / pq->m;
-    pq->table_size = pq->m * pq->code_nums;
+	int N;
+	fread(&N, sizeof(int), 1, fin);
+	fread(&pq->d, sizeof(int), 1, fin);
+	fread(&pq->m, sizeof(int), 1, fin);
+	fread(&pq->nbits, sizeof(int), 1, fin);
+	elog(INFO, "load: %d %d %d %d", N, pq->d, pq->m, pq->nbits);
+	assert(8 % pq->nbits == 0);
+	pq->code_nums = 1 << pq->nbits;
+	pq->tuple_id = 0;
+	pq->d_pq = pq->d / pq->m;
+	pq->table_size = pq->m * pq->code_nums;
 
-
-    //if (pq->pq_dist_cache_data != NULL) {
-    //    free(pq->pq_dist_cache_data);
-    //}
-    //pq->pq_dist_cache_data = (float*)aligned_alloc(64, sizeof(float) * pq->table_size);
-    pq->pq_dist_cache_data = (float*)palloc(sizeof(float) * pq->table_size);
-	pq->qdata = (float*)palloc(sizeof(float) * pq->d);
-    //elog(INFO, "table_size: %d\n", pq->table_size);
-    size_t codes_size = N / 8 * pq->m * pq->nbits;
-    pq->codes = (uint8_t*)palloc(codes_size);
-    if (pq->codes == NULL) {
-        //printf("Memory allocation failed for codes\n");
+	// if (pq->pq_dist_cache_data != NULL) {
+	//     free(pq->pq_dist_cache_data);
+	// }
+	// pq->pq_dist_cache_data = (float*)aligned_alloc(64, sizeof(float) * pq->table_size);
+	pq->pq_dist_cache_data = (float *)palloc(sizeof(float) * pq->table_size);
+	pq->qdata = (float *)palloc(sizeof(float) * pq->d);
+	// elog(INFO, "table_size: %d\n", pq->table_size);
+	size_t codes_size = N / 8 * pq->m * pq->nbits;
+	pq->codes = (uint8_t *)palloc(codes_size);
+	if (pq->codes == NULL)
+	{
+		// printf("Memory allocation failed for codes\n");
 		elog(ERROR, "Memory allocation failed for codes");
-        exit(-1);
-    }
-    fread(pq->codes, sizeof(uint8_t), codes_size, fin);
+		exit(-1);
+	}
+	fread(pq->codes, sizeof(uint8_t), codes_size, fin);
 
-    //elog(INFO, "codes_size: %d\n", codes_size);
-    pq->centroids = (float*)palloc(sizeof(float) * pq->code_nums * pq->d);
-    if (pq->centroids == NULL) {
-        elog(ERROR, "Memory allocation failed for centroids");
-        exit(-1);
-    }
-    fread(pq->centroids, sizeof(float), pq->code_nums * pq->d, fin);
-    fclose(fin);
+	// elog(INFO, "codes_size: %d\n", codes_size);
+	pq->centroids = (float *)palloc(sizeof(float) * pq->code_nums * pq->d);
+	if (pq->centroids == NULL)
+	{
+		elog(ERROR, "Memory allocation failed for centroids");
+		exit(-1);
+	}
+	fread(pq->centroids, sizeof(float), pq->code_nums * pq->d, fin);
+	fclose(fin);
 }
 
-void PQDist_free(PQDist* pq) {
-    if (pq->codes != NULL) {
-        free(pq->codes);
-    }
-    if (pq->centroids != NULL) {
-        free(pq->centroids);
-    }
-    if (pq->pq_dist_cache_data != NULL) {
-        free(pq->pq_dist_cache_data);
-    }
+void PQDist_free(PQDist *pq)
+{
+	if (pq->codes != NULL)
+	{
+		free(pq->codes);
+	}
+	if (pq->centroids != NULL)
+	{
+		free(pq->centroids);
+	}
+	if (pq->pq_dist_cache_data != NULL)
+	{
+		free(pq->pq_dist_cache_data);
+	}
 }
-uint8_t* get_centroids_id(PQDist *pq, int id) {
-	
-    const uint8_t *code = pq->codes + id * (pq->m * pq->nbits / 8);
-    uint8_t *centroids_id = (uint8_t*)palloc(pq->m * sizeof(uint8_t));
-    memset(centroids_id, 0, pq->m);
+uint8_t *get_centroids_id(PQDist *pq, int id)
+{
 
-    if (pq->nbits == 8) {
-        size_t num_ids = pq->m;
-        size_t num_bytes = num_ids;
+	const uint8_t *code = pq->codes + id * (pq->m * pq->nbits / 8);
+	uint8_t *centroids_id = (uint8_t *)palloc(pq->m * sizeof(uint8_t));
+	memset(centroids_id, 0, pq->m);
 
-        size_t i = 0;
+	if (pq->nbits == 8)
+	{
+		size_t num_ids = pq->m;
+		size_t num_bytes = num_ids;
+
+		size_t i = 0;
 		size_t j = 0;
 
-        for (; i + 32 <= num_bytes; i += 32) {
-            __m256i input = _mm256_loadu_si256((__m256i const*)(code + i));
-            _mm256_storeu_si256((__m256i*)(centroids_id + i), input);
-        }
-        for (; i < num_bytes; i++)
-            centroids_id[i] = code[i];
-    } else {
-        size_t num_ids = pq->m;
-        size_t num_bytes = (num_ids + 1) / 2;
+		for (; i + 32 <= num_bytes; i += 32)
+		{
+			__m256i input = _mm256_loadu_si256((__m256i const *)(code + i));
+			_mm256_storeu_si256((__m256i *)(centroids_id + i), input);
+		}
+		for (; i < num_bytes; i++)
+			centroids_id[i] = code[i];
+	}
+	else
+	{
+		size_t num_ids = pq->m;
+		size_t num_bytes = (num_ids + 1) / 2;
 
-        size_t i = 0;
-        size_t j = 0;
+		size_t i = 0;
+		size_t j = 0;
 
-        for (; i + 32 <= num_bytes; i += 32, j += 64) {
-            __m256i input = _mm256_loadu_si256((__m256i const*)(code + i));
+		for (; i + 32 <= num_bytes; i += 32, j += 64)
+		{
+			__m256i input = _mm256_loadu_si256((__m256i const *)(code + i));
 
-            __m256i low_mask = _mm256_set1_epi8(0x0F);
-            __m256i low = _mm256_and_si256(input, low_mask);
+			__m256i low_mask = _mm256_set1_epi8(0x0F);
+			__m256i low = _mm256_and_si256(input, low_mask);
 
-            __m256i high = _mm256_srli_epi16(input, 4);
-            high = _mm256_and_si256(high, low_mask);
+			__m256i high = _mm256_srli_epi16(input, 4);
+			high = _mm256_and_si256(high, low_mask);
 
-            __m256i interleave_lo = _mm256_unpacklo_epi8(low, high);
-            __m256i interleave_hi = _mm256_unpackhi_epi8(low, high);
+			__m256i interleave_lo = _mm256_unpacklo_epi8(low, high);
+			__m256i interleave_hi = _mm256_unpackhi_epi8(low, high);
 
-            __m128i seg0 = _mm256_extracti128_si256(interleave_lo, 0);
-            __m128i seg1 = _mm256_extracti128_si256(interleave_hi, 0);
-            __m128i seg2 = _mm256_extracti128_si256(interleave_lo, 1);
-            __m128i seg3 = _mm256_extracti128_si256(interleave_hi, 1);
+			__m128i seg0 = _mm256_extracti128_si256(interleave_lo, 0);
+			__m128i seg1 = _mm256_extracti128_si256(interleave_hi, 0);
+			__m128i seg2 = _mm256_extracti128_si256(interleave_lo, 1);
+			__m128i seg3 = _mm256_extracti128_si256(interleave_hi, 1);
 
-            _mm_storeu_si128((__m128i*)(centroids_id + j), seg0);
-            _mm_storeu_si128((__m128i*)(centroids_id + j + 16), seg1);
-            _mm_storeu_si128((__m128i*)(centroids_id + j + 32), seg2);
-            _mm_storeu_si128((__m128i*)(centroids_id + j + 48), seg3);
-        }
+			_mm_storeu_si128((__m128i *)(centroids_id + j), seg0);
+			_mm_storeu_si128((__m128i *)(centroids_id + j + 16), seg1);
+			_mm_storeu_si128((__m128i *)(centroids_id + j + 32), seg2);
+			_mm_storeu_si128((__m128i *)(centroids_id + j + 48), seg3);
+		}
 
-        for (; i < num_bytes; ++i, j += 2) {
-            centroids_id[j] = code[i] & 0x0F;
-            centroids_id[j + 1] = (code[i] >> 4) & 0x0F;
-        }
-    }
-    return centroids_id;
+		for (; i < num_bytes; ++i, j += 2)
+		{
+			centroids_id[j] = code[i] & 0x0F;
+			centroids_id[j + 1] = (code[i] >> 4) & 0x0F;
+		}
+	}
+	return centroids_id;
 }
-float* get_centroid_data(PQDist* pqdist, int quantizer, int code_id) {
-    return pqdist->centroids + (quantizer * pqdist->code_nums + code_id) * pqdist->d_pq;
+float *get_centroid_data(PQDist *pqdist, int quantizer, int code_id)
+{
+	return pqdist->centroids + (quantizer * pqdist->code_nums + code_id) * pqdist->d_pq;
 }
 float calc_dist(int d, float *vec1, float *vec2)
 {
 	float distance = 0;
-    for(int i = 0; i < d; i++){
+	for (int i = 0; i < d; i++)
+	{
 		distance += (vec1[i] - vec2[i]) * (vec1[i] - vec2[i]);
 	}
 	return distance;
 }
-void clear_pq_dist_cache(PQDist* pqdist)
+void clear_pq_dist_cache(PQDist *pqdist)
 {
-    memset(pqdist->pq_dist_cache_data, 0, (pqdist->m*pqdist->code_nums) * sizeof(float));
+	memset(pqdist->pq_dist_cache_data, 0, (pqdist->m * pqdist->code_nums) * sizeof(float));
 }
 
-void load_query_data_and_cache(PQDist* pqdist, const float *_qdata) {
+void load_query_data_and_cache(PQDist *pqdist, const float *_qdata)
+{
 
+	memcpy(pqdist->qdata, _qdata, sizeof(float) * pqdist->d);
 
-    memcpy(pqdist->qdata, _qdata, sizeof(float) * pqdist->d);
+	clear_pq_dist_cache(pqdist);
 
-    clear_pq_dist_cache(pqdist);
+	pqdist->use_cache = true;
 
-    pqdist->use_cache = true;
-    
-    for (int i = 0; i < pqdist->m * pqdist->code_nums; i++) {
-        pqdist->pq_dist_cache_data[i] = calc_dist(pqdist->d_pq, get_centroid_data(pqdist, i / pqdist->code_nums, i % pqdist->code_nums), pqdist->qdata + (i / pqdist->code_nums) * pqdist->d_pq);
-    }
+	for (int i = 0; i < pqdist->m * pqdist->code_nums; i++)
+	{
+		pqdist->pq_dist_cache_data[i] = calc_dist(pqdist->d_pq, get_centroid_data(pqdist, i / pqdist->code_nums, i % pqdist->code_nums), pqdist->qdata + (i / pqdist->code_nums) * pqdist->d_pq);
+	}
 
-
-    __builtin_prefetch(pqdist->pq_dist_cache_data, 0, 3);
-    size_t prefetch_size = 128;
-    for (int i = 0; i < pqdist->table_size * 4; i += prefetch_size / 4) {
-        __builtin_prefetch(pqdist->pq_dist_cache_data + i, 0, 3);
-    }
-	
+	__builtin_prefetch(pqdist->pq_dist_cache_data, 0, 3);
+	size_t prefetch_size = 128;
+	for (int i = 0; i < pqdist->table_size * 4; i += prefetch_size / 4)
+	{
+		__builtin_prefetch(pqdist->pq_dist_cache_data + i, 0, 3);
+	}
 }
-float calc_dist_pq_simd(PQDist* pqdist, int data_id, float *qdata, bool use_cache) {
-    float dist = 0;
-    uint8_t *ids = get_centroids_id(pqdist, data_id);
-    __m256 simd_dist = _mm256_setzero_ps();
-    int q;
-    const int stride = 8;
+float calc_dist_pq_simd(PQDist *pqdist, int data_id, float *qdata, bool use_cache)
+{
+	float dist = 0;
+	uint8_t *ids = get_centroids_id(pqdist, data_id);
+	__m256 simd_dist = _mm256_setzero_ps();
+	int q;
+	const int stride = 8;
 
-    for (q = 0; q <= pqdist->m - stride; q += stride) {
-        __m128i id_vec_128 = _mm_loadl_epi64((__m128i*)(ids + q));
-        __m256i id_vec = _mm256_cvtepu8_epi32(id_vec_128);
+	for (q = 0; q <= pqdist->m - stride; q += stride)
+	{
+		__m128i id_vec_128 = _mm_loadl_epi64((__m128i *)(ids + q));
+		__m256i id_vec = _mm256_cvtepu8_epi32(id_vec_128);
 
-        __m256i offset_vec = _mm256_setr_epi32(0 * pqdist->code_nums, 1 * pqdist->code_nums, 2 * pqdist->code_nums, 3 * pqdist->code_nums,
-                                               4 * pqdist->code_nums, 5 * pqdist->code_nums, 6 * pqdist->code_nums, 7 * pqdist->code_nums);
+		__m256i offset_vec = _mm256_setr_epi32(0 * pqdist->code_nums, 1 * pqdist->code_nums, 2 * pqdist->code_nums, 3 * pqdist->code_nums,
+											   4 * pqdist->code_nums, 5 * pqdist->code_nums, 6 * pqdist->code_nums, 7 * pqdist->code_nums);
 
-        id_vec = _mm256_add_epi32(id_vec, offset_vec);
-        __m256 dist_vec = _mm256_i32gather_ps(pqdist->pq_dist_cache_data + q * pqdist->code_nums, id_vec, 4);
-        simd_dist = _mm256_add_ps(simd_dist, dist_vec);
-    }
+		id_vec = _mm256_add_epi32(id_vec, offset_vec);
+		__m256 dist_vec = _mm256_i32gather_ps(pqdist->pq_dist_cache_data + q * pqdist->code_nums, id_vec, 4);
+		simd_dist = _mm256_add_ps(simd_dist, dist_vec);
+	}
 
-    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
-    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+	simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+	simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
 
-    float dist_array[8];
-    _mm256_storeu_ps(dist_array, simd_dist);
-    dist += dist_array[0] + dist_array[4];
+	float dist_array[8];
+	_mm256_storeu_ps(dist_array, simd_dist);
+	dist += dist_array[0] + dist_array[4];
 
-    for (; q < pqdist->m; q++) {
-        dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
-    }
+	for (; q < pqdist->m; q++)
+	{
+		dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
+	}
 
-    return dist;
+	return dist;
 }
-float calc_dist_pq_loaded_simd(PQDist* pqdist, int data_id) {
-    //elog(INFO, "data_id: %d", data_id);
-    float distance = calc_dist_pq_simd(pqdist, data_id, pqdist->qdata, pqdist->use_cache);
-	
+float calc_dist_pq_loaded_simd(PQDist *pqdist, int data_id)
+{
+	// elog(INFO, "data_id: %d", data_id);
+	float distance = calc_dist_pq_simd(pqdist, data_id, pqdist->qdata, pqdist->use_cache);
+
 	return distance;
 }
 
+float calc_dist_pq_loaded_by_id(PQDist *pqdist, uint8_t *ids)
+{
+	float distance = calc_dist_pq_by_id(pqdist, ids, pqdist->qdata, pqdist->use_cache);
+
+	return distance;
+}
+
+float calc_dist_pq_by_id(PQDist *pqdist, uint8_t *ids, float *qdata, bool use_cache)
+{
+	float dist = 0;
+	__m256 simd_dist = _mm256_setzero_ps();
+	int q;
+	const int stride = 8;
+
+	for (q = 0; q <= pqdist->m - stride; q += stride)
+	{
+		__m128i id_vec_128 = _mm_loadl_epi64((__m128i *)(ids + q));
+		__m256i id_vec = _mm256_cvtepu8_epi32(id_vec_128);
+
+		__m256i offset_vec = _mm256_setr_epi32(0 * pqdist->code_nums, 1 * pqdist->code_nums, 2 * pqdist->code_nums, 3 * pqdist->code_nums,
+											   4 * pqdist->code_nums, 5 * pqdist->code_nums, 6 * pqdist->code_nums, 7 * pqdist->code_nums);
+
+		id_vec = _mm256_add_epi32(id_vec, offset_vec);
+		__m256 dist_vec = _mm256_i32gather_ps(pqdist->pq_dist_cache_data + q * pqdist->code_nums, id_vec, 4);
+		simd_dist = _mm256_add_ps(simd_dist, dist_vec);
+	}
+
+	simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+	simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+
+	float dist_array[8];
+	_mm256_storeu_ps(dist_array, simd_dist);
+	dist += dist_array[0] + dist_array[4];
+
+	for (; q < pqdist->m; q++)
+	{
+		dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
+	}
+
+	return dist;
+}

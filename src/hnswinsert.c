@@ -137,6 +137,7 @@ HnswInsertAppendPage(Relation index, Buffer *nbuf, Page *npage, GenericXLogState
 static void
 AddElementOnDisk(Relation index, HnswElement e, int m, BlockNumber insertPage, BlockNumber *updatedInsertPage, bool building)
 {
+
 	Buffer		buf;
 	Page		page;
 	GenericXLogState *state;
@@ -157,7 +158,7 @@ AddElementOnDisk(Relation index, HnswElement e, int m, BlockNumber insertPage, B
 
 	/* Calculate sizes */
 	etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(HnswPtrAccess(base, e->value)));
-	ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(e->level, m);
+	ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(e->level, m) + (1 + (e->level + 2) * m) * HnswGetNbits(index) / 8;
 	combinedSize = etupSize + ntupSize + sizeof(ItemIdData);
 	maxSize = HNSW_MAX_SIZE;
 	minCombinedSize = etupSize + HNSW_NEIGHBOR_TUPLE_SIZE(0, m) + sizeof(ItemIdData);
@@ -168,7 +169,9 @@ AddElementOnDisk(Relation index, HnswElement e, int m, BlockNumber insertPage, B
 
 	/* Prepare neighbor tuple */
 	ntup = palloc0(ntupSize);
-	HnswSetNeighborTuple(base, ntup, e, m);
+	int use_pq = HnswGetUsePQ(index);
+	PQDist* pqdist = (PQDist*)palloc(sizeof(PQDist));
+	HnswSetNeighborTuple(base, ntup, e, m, use_pq, pqdist);
 
 	/* Find a page (or two if needed) to insert the tuples */
 	for (;;)
