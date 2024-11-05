@@ -10,6 +10,7 @@
 
 typedef struct Vector
 {
+	//使用pq时x里存储的实际是encode_data
 	int32		vl_len_;		/* varlena header (do not touch directly!) */
 	int16		dim;			/* number of dimensions */
 	int16		unused;			/* reserved for future use, always zero */

@@ -165,7 +165,7 @@ struct HnswElementData
 	OffsetNumber neighborOffno;
 	BlockNumber neighborPage;
 	DatumPtr	value;
-	Encode_Data*    encoded_data;
+	Encode_Data*    encode_data;
 	LWLock		lock;
 };
 
@@ -445,7 +445,7 @@ bool		HnswInsertTupleOnDisk(Relation index, Datum value, Datum *values, bool *is
 void		HnswUpdateNeighborsOnDisk(Relation index, FmgrInfo *procinfo, Oid collation, HnswElement e, int m, bool checkExisting, bool building);
 void		HnswLoadElementFromTuple(HnswElement element, HnswElementTuple etup, bool loadHeaptids, bool loadVec);
 void		HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, FmgrInfo *procinfo, Oid collation, bool loadVec, float *maxDistance, int use_pq, PQDist* pqdist);
-void		HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element);
+void		HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element, bool use_pq, PQDist* pqdist);
 void		HnswUpdateConnection(char *base, HnswElement element, HnswCandidate * hc, int lm, int lc, int *updateIdx, Relation index, FmgrInfo *procinfo, Oid collation);
 void		HnswLoadNeighbors(HnswElement element, Relation index, int m);
 void		HnswInitLockTranche(void);

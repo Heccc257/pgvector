@@ -164,7 +164,7 @@ AddElementOnDisk(Relation index, HnswElement e, int m, BlockNumber insertPage, B
 
 	/* Prepare element tuple */
 	etup = palloc0(etupSize);
-	HnswSetElementTuple(base, etup, e);
+	HnswSetElementTuple(base, etup, e, HnswGetUsePQ(index), HnswGetPQDist(index));
 
 	/* Prepare neighbor tuple */
 	ntup = palloc0(ntupSize);

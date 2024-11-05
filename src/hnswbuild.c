@@ -194,7 +194,7 @@ CreateGraphPages(HnswBuildState *buildstate)
 		if (etupSize > HNSW_TUPLE_ALLOC_SIZE)
 			elog(ERROR, "index tuple too large");
 
-		HnswSetElementTuple(base, etup, element);
+		HnswSetElementTuple(base, etup, element, buildstate->use_pq, buildstate->pqdist);
 
 		/* Keep element and neighbors on the same page if possible */
 		if (PageGetFreeSpace(page) < etupSize || (combinedSize <= maxSize && PageGetFreeSpace(page) < combinedSize))

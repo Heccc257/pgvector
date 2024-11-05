@@ -487,10 +487,9 @@ HnswUpdateMetaPage(Relation index, int updateEntry, HnswElement entryPoint, Bloc
  * Set element tuple, except for neighbor info
  */
 void
-HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element)
+HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element, bool use_pq, PQDist* pqdist)
 {
 	Pointer		valuePtr = HnswPtrAccess(base, element->value);
-
 	etup->type = HNSW_ELEMENT_TUPLE_TYPE;
 	etup->level = element->level;
 	etup->deleted = 0;
@@ -503,6 +502,11 @@ HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element)
 			ItemPointerSetInvalid(&etup->heaptids[i]);
 	}
 	memcpy(&etup->data, valuePtr, VARSIZE_ANY(valuePtr));
+	uint8_t* ids = get_centroids_id(pqdist, element->id);
+	if(use_pq)
+	{
+		memcpy(&etup->data.x, ids, pqdist->m);
+	}
 }
 
 /*
@@ -664,7 +668,7 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 		else if(!use_pq)
 			*distance = (float) DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
 		else
-			*distance = (float)calc_dist_pq_loaded_simd(pqdist, etup->id);
+			*distance = (float)calc_dist_pq_loaded_by_id(pqdist, (uint8_t*)etup->data.x);
 	}
 
 	/* Load element */
@@ -1712,5 +1716,39 @@ float calc_dist_pq_loaded_simd(PQDist* pqdist, int data_id) {
     float distance = calc_dist_pq_simd(pqdist, data_id, pqdist->qdata, pqdist->use_cache);
 	
 	return distance;
+}
+
+float calc_dist_pq_loaded_by_id(PQDist* pqdist, uint8_t* ids) {
+	//elog(INFO, "data_id: %d", data_id);
+	
+	float dist = 0;
+    __m256 simd_dist = _mm256_setzero_ps();
+    int q;
+    const int stride = 8;
+
+    for (q = 0; q <= pqdist->m - stride; q += stride) {
+        __m128i id_vec_128 = _mm_loadl_epi64((__m128i*)(ids + q));
+        __m256i id_vec = _mm256_cvtepu8_epi32(id_vec_128);
+
+        __m256i offset_vec = _mm256_setr_epi32(0 * pqdist->code_nums, 1 * pqdist->code_nums, 2 * pqdist->code_nums, 3 * pqdist->code_nums,
+                                               4 * pqdist->code_nums, 5 * pqdist->code_nums, 6 * pqdist->code_nums, 7 * pqdist->code_nums);
+
+        id_vec = _mm256_add_epi32(id_vec, offset_vec);
+        __m256 dist_vec = _mm256_i32gather_ps(pqdist->pq_dist_cache_data + q * pqdist->code_nums, id_vec, 4);
+        simd_dist = _mm256_add_ps(simd_dist, dist_vec);
+    }
+
+    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+
+    float dist_array[8];
+    _mm256_storeu_ps(dist_array, simd_dist);
+    dist += dist_array[0] + dist_array[4];
+
+    for (; q < pqdist->m; q++) {
+        dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
+    }
+
+    return dist;
 }
 
