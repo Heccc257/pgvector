@@ -369,9 +369,10 @@ typedef struct HnswNeighborTupleData
 	uint8		type;
 	uint8		unused;
 	uint16		count;
+	uint16      layer0_count;
 
 	// encode_data和邻接链表公用存储空间，indextids + count指向encode_data的起始位置
-	// encode_data共占(1 + neighborCount) * m * nbits / 8字节
+	// encode_data共占2 * layer0_count * pq_m字节
 	ItemPointerData indextids[FLEXIBLE_ARRAY_MEMBER];
 }			HnswNeighborTupleData;
 

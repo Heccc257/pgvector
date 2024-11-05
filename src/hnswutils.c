@@ -531,30 +531,20 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 		void *pq_start = (void *)(ntup->indextids + idx);
 		void *pq_store;
 
-		memcpy(pq_start, encode_data, pqdist->code_nums);
+		memcpy(pq_start, encode_data, pqdist->m);
 
 		idx = 0;
-		int lc = 0;
+		HnswNeighborArray *neighbors = HnswGetNeighbors(base, e, 0);
+		ntup->layer0_count = neighbors->length;
 
-		HnswNeighborArray *neighbors = HnswGetNeighbors(base, e, lc);
-		int lm = HnswGetLayerM(m, lc);
-
-		for (int i = 0; i < lm; i++)
+		for (int i = 0; i < ntup->layer0_count; i++)
 		{
-			pq_store = pq_start + pqdist->code_nums * (idx + 1);
+			pq_store = pq_start + pqdist->m * (idx + 1);
 			idx += 1;
-			if (i < neighbors->length)
-			{
-
-				HnswCandidate *hc = &neighbors->items[i];
-				HnswElement hce = HnswPtrAccess(base, hc->element);
-				encode_data = get_centroids_id(pqdist, hce->id);
-				memcpy(pq_store, encode_data, pqdist->code_nums);
-			}
-			else
-			{
-				memset(pq_store, 0, pqdist->code_nums);
-			}
+			HnswCandidate *hc = &neighbors->items[i];
+			HnswElement hce = HnswPtrAccess(base, hc->element);
+			encode_data = get_centroids_id(pqdist, hce->id);
+			memcpy(pq_store, encode_data, pqdist->m);
 		}
 	}
 }
@@ -582,7 +572,6 @@ LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int
 
 	void *pq_store = (void *)(ntup->indextids + ntup->count) + pq_m;
 
-
 	for (int i = 0; i < neighborCount; i++)
 	{
 		HnswElement e;
@@ -598,26 +587,26 @@ LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int
 
 		if (!ItemPointerIsValid(indextid))
 		{
-			if(use_pq && level == 0)
-				pq_store += pq_m;
 			continue;
 		}
-
 		e = HnswInitElementFromBlock(ItemPointerGetBlockNumber(indextid), ItemPointerGetOffsetNumber(indextid));
-
 		/* Calculate level based on offset */
-
 		neighbors = HnswGetNeighbors(base, element, level);
 		hc = &neighbors->items[neighbors->length++];
-		if (use_pq && level == 0)
-		{
-			Encode_Data *encode_data = (Encode_Data *)palloc(offsetof(Encode_Data, data) + pq_m);
-			encode_data->length = pq_m;
-			elog(INFO, "encode_data->length:%d", pq_m);
-			memcpy(encode_data->data, pq_store, pq_m);
-			e->encode_data = encode_data;
-		}
 		HnswPtrStore(base, hc->element, e);
+	}
+	if (use_pq)
+	{
+		int layer0_count = ntup->layer0_count;
+		Encode_Data *encode_data = (Encode_Data *)palloc(offsetof(Encode_Data, data) + pq_m * (layer0_count + 1));
+		void *pq_start = (void *)(ntup->indextids + neighborCount);
+		memcpy(encode_data->data, pq_start, pq_m);
+		for (int i = 0; i < layer0_count; i++)
+		{
+			pq_store = pq_start + pq_m * (i + 1);
+			memcpy(encode_data->data + (i + 1) * pq_m, pq_store, pq_m);
+		}
+		element->encode_data = encode_data;
 	}
 }
 
@@ -979,7 +968,7 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 					else
 					{
 						elog(INFO, "yyyyy");
-						eDistance = calc_dist_pq_loaded_by_id(pqdist, eElement->encode_data->data + pqdist->code_nums * i);
+						eDistance = calc_dist_pq_loaded_by_id(pqdist, cElement->encode_data->data + pqdist->m * (i + 1));
 						elog(INFO, "distance:%f", eDistance);
 					}
 				}

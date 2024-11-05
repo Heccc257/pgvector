@@ -214,7 +214,10 @@ CreateGraphPages(HnswBuildState *buildstate)
 			element->neighborPage = element->blkno + 1;
 			element->neighborOffno = FirstOffsetNumber;
 		}
-
+        if(element->neighborPage > 100000)
+		{
+			elog(ERROR, "element->neighborPage:%d", element->neighborPage);
+		}
 		ItemPointerSet(&etup->neighbortid, element->neighborPage, element->neighborOffno);
 
 		/* Add element */

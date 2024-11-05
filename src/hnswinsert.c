@@ -137,6 +137,7 @@ HnswInsertAppendPage(Relation index, Buffer *nbuf, Page *npage, GenericXLogState
 static void
 AddElementOnDisk(Relation index, HnswElement e, int m, BlockNumber insertPage, BlockNumber *updatedInsertPage, bool building)
 {
+	elog(INFO, "AddElementOnDisk");
 
 	Buffer		buf;
 	Page		page;
