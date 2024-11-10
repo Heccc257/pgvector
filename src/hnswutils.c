@@ -502,11 +502,11 @@ HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element, bool
 			ItemPointerSetInvalid(&etup->heaptids[i]);
 	}
 	memcpy(&etup->data, valuePtr, VARSIZE_ANY(valuePtr));
-	uint8_t* ids = get_centroids_id(pqdist, element->id);
-	if(use_pq)
+	//uint8_t* ids = get_centroids_id(pqdist, element->id);
+	/* if(use_pq)
 	{
 		memcpy(&etup->data.x, ids, pqdist->m);
-	}
+	} */
 }
 
 /*
@@ -668,7 +668,7 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 		else if(!use_pq)
 			*distance = (float) DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
 		else
-			*distance = (float)calc_dist_pq_loaded_by_id(pqdist, (uint8_t*)etup->data.x);
+			*distance = (float)calc_dist_pq_loaded_by_id(pqdist, etup->data.x);
 	}
 
 	/* Load element */
@@ -1753,9 +1753,11 @@ float calc_dist_pq_loaded_simd(PQDist* pqdist, int data_id) {
 	return distance;
 }
 
-float calc_dist_pq_loaded_by_id(PQDist* pqdist, uint8_t* ids) {
+float calc_dist_pq_loaded_by_id(PQDist* pqdist, float* vec) {
 	//elog(INFO, "data_id: %d", data_id);
-	
+	uint8_t* ids = (uint8_t*)palloc(pqdist->m * sizeof(uint8_t));
+	PQCaculate_Codes(pqdist, vec, ids);
+
 	float dist = 0;
     __m256 simd_dist = _mm256_setzero_ps();
     int q;
@@ -1783,6 +1785,7 @@ float calc_dist_pq_loaded_by_id(PQDist* pqdist, uint8_t* ids) {
     for (; q < pqdist->m; q++) {
         dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
     }
+	pfree(ids);
 
     return dist;
 }
