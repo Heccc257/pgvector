@@ -1551,19 +1551,22 @@ void PQDist_load(PQDist* pq, const char* filename) {
 
     //if (pq->pq_dist_cache_data != NULL) {
     //    free(pq->pq_dist_cache_data);
-    //}
+    //}calc_dist_pq_loaded_by_id
     //pq->pq_dist_cache_data = (float*)aligned_alloc(64, sizeof(float) * pq->table_size);
     pq->pq_dist_cache_data = (float*)palloc(sizeof(float) * pq->table_size);
 	pq->qdata = (float*)palloc(sizeof(float) * pq->d);
     //elog(INFO, "table_size: %d\n", pq->table_size);
-    size_t codes_size = N / 8 * pq->m * pq->nbits;
-    pq->codes = (uint8_t*)palloc(codes_size);
-    if (pq->codes == NULL) {
-        //printf("Memory allocation failed for codes\n");
-		elog(ERROR, "Memory allocation failed for codes");
-        exit(-1);
-    }
-    fread(pq->codes, sizeof(uint8_t), codes_size, fin);
+
+	// IGNORE CODES, ONLY READ CENTROIDS
+
+    // size_t codes_size = N / 8 * pq->m * pq->nbits;
+    // pq->codes = (uint8_t*)palloc(codes_size);
+    // if (pq->codes == NULL) {
+    //     //printf("Memory allocation failed for codes\n");
+	// 	elog(ERROR, "Memory allocation failed for codes");
+    //     exit(-1);
+    // }
+    // fread(pq->codes, sizeof(uint8_t), codes_size, fin);
 
     //elog(INFO, "codes_size: %d\n", codes_size);
     pq->centroids = (float*)palloc(sizeof(float) * pq->code_nums * pq->d);
@@ -1573,6 +1576,38 @@ void PQDist_load(PQDist* pq, const char* filename) {
     }
     fread(pq->centroids, sizeof(float), pq->code_nums * pq->d, fin);
     fclose(fin);
+}
+
+void PQCaculate_Codes(PQDist* pq, float* vec, uint8_t* encode_vec){
+	/*
+	Data Format:
+	1 row * D columns
+	*/
+    
+        
+	for (int j = 0; j < pq->m; ++j) {
+		float* subvec = vec + j * pq->d_pq;
+		float min_dist = 1e10;
+		int best_centroid = 0;
+
+		for (int k = 0; k < pq->code_nums; ++k) {
+			float* centroid = pq->centroids + (j * pq->code_nums + k) * pq->d_pq;
+			float dist = 0.0;
+
+			for (int l = 0; l < pq->d_pq; ++l) {
+				float diff = subvec[l] - centroid[l];
+				dist += diff * diff;
+			}
+
+			if (dist < min_dist) {
+				min_dist = dist;
+				best_centroid = k;
+			}
+		}
+
+		encode_vec[j] = best_centroid;
+	}
+
 }
 
 void PQDist_free(PQDist* pq) {
