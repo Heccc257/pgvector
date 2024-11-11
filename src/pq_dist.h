@@ -28,6 +28,6 @@ float* get_centroid_data(PQDist *pq, int quantizer, int code_id);
 float calc_dist_pq_simd(PQDist* pqdist, int data_id, float *qdata, bool use_cache);
 float calc_dist_pq_loaded_simd(PQDist* pqdist, int data_id);
 void load_query_data_and_cache(PQDist* pqdist, const float *_qdata);
-float calc_dist_pq_loaded_by_id(PQDist* pqdist, float* vec);
+float calc_dist_pq_loaded_by_id(PQDist* pqdist, uint8_t* ids);
 //复制一份pqdist;
 

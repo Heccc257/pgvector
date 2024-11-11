@@ -503,10 +503,13 @@ HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element, bool
 	}
 	memcpy(&etup->data, valuePtr, VARSIZE_ANY(valuePtr));
 	//uint8_t* ids = get_centroids_id(pqdist, element->id);
-	/* if(use_pq)
+	if(use_pq)
 	{
+		uint8_t* ids = (uint8_t*)palloc(pqdist->m);
+		PQCaculate_Codes(pqdist, (float*)&etup->data.x, ids); 
 		memcpy(&etup->data.x, ids, pqdist->m);
-	} */
+		pfree(ids);
+	}
 }
 
 /*
@@ -668,7 +671,7 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 		else if(!use_pq)
 			*distance = (float) DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
 		else
-			*distance = (float)calc_dist_pq_loaded_by_id(pqdist, etup->data.x);
+			*distance = (float)calc_dist_pq_loaded_by_id(pqdist, (uint8_t*)etup->data.x);
 	}
 
 	/* Load element */
@@ -1579,12 +1582,6 @@ void PQDist_load(PQDist* pq, const char* filename) {
 }
 
 void PQCaculate_Codes(PQDist* pq, float* vec, uint8_t* encode_vec){
-	/*
-	Data Format:
-	1 row * D columns
-	*/
-    
-        
 	for (int j = 0; j < pq->m; ++j) {
 		float* subvec = vec + j * pq->d_pq;
 		float min_dist = 1e10;
@@ -1753,10 +1750,10 @@ float calc_dist_pq_loaded_simd(PQDist* pqdist, int data_id) {
 	return distance;
 }
 
-float calc_dist_pq_loaded_by_id(PQDist* pqdist, float* vec) {
+float calc_dist_pq_loaded_by_id(PQDist* pqdist, uint8_t* ids) {
 	//elog(INFO, "data_id: %d", data_id);
-	uint8_t* ids = (uint8_t*)palloc(pqdist->m * sizeof(uint8_t));
-	PQCaculate_Codes(pqdist, vec, ids);
+	//uint8_t* ids = (uint8_t*)palloc(pqdist->m * sizeof(uint8_t));
+	//PQCaculate_Codes(pqdist, vec, ids);
 
 	float dist = 0;
     __m256 simd_dist = _mm256_setzero_ps();
@@ -1785,8 +1782,6 @@ float calc_dist_pq_loaded_by_id(PQDist* pqdist, float* vec) {
     for (; q < pqdist->m; q++) {
         dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
     }
-	pfree(ids);
-
     return dist;
 }
 
