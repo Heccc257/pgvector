@@ -506,8 +506,8 @@ HnswSetElementTuple(char *base, HnswElementTuple etup, HnswElement element, bool
 	if(use_pq)
 	{
 		uint8_t* ids = (uint8_t*)palloc(pqdist->m);
-		PQCaculate_Codes(pqdist, (float*)&etup->data.x, ids); 
-		memcpy(&etup->data.x, ids, pqdist->m);
+		PQCaculate_Codes(pqdist, (float*)&etup->data.x, ids); 	
+		memcpy(etup->data.x + etup->data.dim, ids, pqdist->m);
 		pfree(ids);
 	}
 }
@@ -671,7 +671,7 @@ HnswLoadElement(HnswElement element, float *distance, Datum *q, Relation index, 
 		else if(!use_pq)
 			*distance = (float) DatumGetFloat8(FunctionCall2Coll(procinfo, collation, *q, PointerGetDatum(&etup->data)));
 		else
-			*distance = (float)calc_dist_pq_loaded_by_id(pqdist, (uint8_t*)etup->data.x);
+			*distance = (float)calc_dist_pq_loaded_by_id(pqdist, (uint8_t*)(etup->data.x+etup->data.dim));
 	}
 
 	/* Load element */
@@ -996,7 +996,6 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 			else
 				HnswLoadElement(HnswPtrAccess(base, hc->element), &realDistance, &q, index, procinfo, collation, inserting, NULL, 0, NULL);
 			hc->distance = realDistance;
-			
 			pairingheap_add(W, &(CreatePairingHeapNode(hc)->ph_node));
 		}
 	}
