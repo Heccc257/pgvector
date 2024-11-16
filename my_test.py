@@ -88,7 +88,7 @@ print('Index already exists or Creating index is Done...')
 
 #ef_list_1 = list(range(10,60,3))
 ef_list_2 = list(range(60,100,10))
-ef_list_3 = list(range(100,420,20))
+ef_list_3 = list(range(100,800,20))
 ef_list = ef_list_2 + ef_list_3
 
 

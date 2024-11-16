@@ -186,7 +186,11 @@ CreateGraphPages(HnswBuildState *buildstate)
 		MemSet(etup, 0, HNSW_TUPLE_ALLOC_SIZE);
 
 		/* Calculate sizes */
-		etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(valuePtr) + buildstate->pq_m);
+		if(buildstate->use_pq)
+			etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(valuePtr) + buildstate->pq_m);
+		else
+			etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(valuePtr));
+
 		ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(element->level, buildstate->m);
 		combinedSize = etupSize + ntupSize + sizeof(ItemIdData);
 
