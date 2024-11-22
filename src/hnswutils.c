@@ -501,7 +501,6 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 {
 
 	int idx = 0;
-
 	ntup->type = HNSW_NEIGHBOR_TUPLE_TYPE;
 
 	for (int lc = e->level; lc >= 0; lc--)
@@ -512,7 +511,6 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 		for (int i = 0; i < lm; i++)
 		{
 			ItemPointer indextid = &ntup->indextids[idx++];
-
 			if (i < neighbors->length)
 			{
 				HnswCandidate *hc = &neighbors->items[i];
@@ -525,9 +523,11 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 		}
 	}
 	ntup->count = idx;
+	uint8_t* encode_data = palloc(pqdist->m);
 	if (use_pq)
 	{
-		uint8_t *encode_data = get_centroids_id(pqdist, e->id);
+		
+		PQCaculate_Codes(pqdist, DatumGetVector(HnswGetValue(base, e))->x, encode_data);
 		void *pq_start = (void *)(ntup->indextids + idx);
 		void *pq_store;
 
@@ -543,10 +543,11 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 			idx += 1;
 			HnswCandidate *hc = &neighbors->items[i];
 			HnswElement hce = HnswPtrAccess(base, hc->element);
-			encode_data = get_centroids_id(pqdist, hce->id);
+			PQCaculate_Codes(pqdist, DatumGetVector(HnswGetValue(base, hce))->x, encode_data);
 			memcpy(pq_store, encode_data, pqdist->m);
 		}
 	}
+	pfree(encode_data);
 }
 
 /*
@@ -1541,266 +1542,268 @@ Datum hnsw_sparsevec_support(PG_FUNCTION_ARGS)
 	PG_RETURN_POINTER(&typeInfo);
 };
 
-void pqdist_init(PQDist *pqdist, int _d, int _m, int _nbits)
+void pqdist_init(PQDist* pqdist, int _d, int _m, int _nbits)
 {
-	pqdist->d = _d;
-	pqdist->m = _m;
-	pqdist->nbits = _nbits;
-	pqdist->code_nums = 1 << _nbits;
-	pqdist->d_pq = _d / _m;
-	pqdist->codes = (uint8_t *)malloc(sizeof(uint8_t) * _m * _nbits);
-	pqdist->centroids = (float *)malloc(sizeof(float) * _m * _d);
-	pqdist->pq_dist_cache_data = (float *)malloc(sizeof(float) * _m * pqdist->code_nums);
+    pqdist->d = _d;
+    pqdist->m = _m;
+    pqdist->nbits = _nbits;
+    pqdist->code_nums = 1 << _nbits;
+    pqdist->d_pq = _d / _m;
+    pqdist->codes = (uint8_t*)malloc(sizeof(uint8_t) * _m * _nbits);
+    pqdist->centroids = (float*)malloc(sizeof(float) * _m * _d);
+    pqdist->pq_dist_cache_data = (float*)malloc(sizeof(float) * _m * pqdist->code_nums);
 }
 
-void PQDist_load(PQDist *pq, const char *filename)
-{
-	FILE *fin = fopen(filename, "rb");
-	if (fin == NULL)
-	{
-		// printf("open %s fail\n", filename);
+void PQDist_load(PQDist* pq, const char* filename) {
+    FILE* fin = fopen(filename, "rb");
+    if (fin == NULL) {
+        //printf("open %s fail\n", filename);
 		elog(ERROR, "open %s fail", filename);
-		exit(-1);
-	}
+        exit(-1);
+    }
 
-	int N;
-	fread(&N, sizeof(int), 1, fin);
-	fread(&pq->d, sizeof(int), 1, fin);
-	fread(&pq->m, sizeof(int), 1, fin);
-	fread(&pq->nbits, sizeof(int), 1, fin);
-	elog(INFO, "load: %d %d %d %d", N, pq->d, pq->m, pq->nbits);
-	assert(8 % pq->nbits == 0);
-	pq->code_nums = 1 << pq->nbits;
-	pq->tuple_id = 0;
-	pq->d_pq = pq->d / pq->m;
-	pq->table_size = pq->m * pq->code_nums;
+    int N;
+    fread(&N, sizeof(int), 1, fin);
+    fread(&pq->d, sizeof(int), 1, fin);
+    fread(&pq->m, sizeof(int), 1, fin);
+    fread(&pq->nbits, sizeof(int), 1, fin);
+    elog(INFO, "load: %d %d %d %d", N, pq->d, pq->m, pq->nbits);
+    assert(8 % pq->nbits == 0);
+    pq->code_nums = 1 << pq->nbits;
+    pq->tuple_id = 0;
+    pq->d_pq = pq->d / pq->m;
+    pq->table_size = pq->m * pq->code_nums;
 
-	// if (pq->pq_dist_cache_data != NULL) {
-	//     free(pq->pq_dist_cache_data);
-	// }
-	// pq->pq_dist_cache_data = (float*)aligned_alloc(64, sizeof(float) * pq->table_size);
-	pq->pq_dist_cache_data = (float *)palloc(sizeof(float) * pq->table_size);
-	pq->qdata = (float *)palloc(sizeof(float) * pq->d);
-	// elog(INFO, "table_size: %d\n", pq->table_size);
-	size_t codes_size = N / 8 * pq->m * pq->nbits;
-	pq->codes = (uint8_t *)palloc(codes_size);
-	if (pq->codes == NULL)
-	{
-		// printf("Memory allocation failed for codes\n");
-		elog(ERROR, "Memory allocation failed for codes");
-		exit(-1);
-	}
-	fread(pq->codes, sizeof(uint8_t), codes_size, fin);
 
-	// elog(INFO, "codes_size: %d\n", codes_size);
-	pq->centroids = (float *)palloc(sizeof(float) * pq->code_nums * pq->d);
-	if (pq->centroids == NULL)
-	{
-		elog(ERROR, "Memory allocation failed for centroids");
-		exit(-1);
-	}
-	fread(pq->centroids, sizeof(float), pq->code_nums * pq->d, fin);
-	fclose(fin);
+    //if (pq->pq_dist_cache_data != NULL) {
+    //    free(pq->pq_dist_cache_data);
+    //}calc_dist_pq_loaded_by_id
+    //pq->pq_dist_cache_data = (float*)aligned_alloc(64, sizeof(float) * pq->table_size);
+    pq->pq_dist_cache_data = (float*)palloc(sizeof(float) * pq->table_size);
+	pq->qdata = (float*)palloc(sizeof(float) * pq->d);
+    //elog(INFO, "table_size: %d\n", pq->table_size);
+
+	// IGNORE CODES, ONLY READ CENTROIDS
+
+    // size_t codes_size = N / 8 * pq->m * pq->nbits;
+    // pq->codes = (uint8_t*)palloc(codes_size);
+    // if (pq->codes == NULL) {
+    //     //printf("Memory allocation failed for codes\n");
+	// 	elog(ERROR, "Memory allocation failed for codes");
+    //     exit(-1);
+    // }
+    // fread(pq->codes, sizeof(uint8_t), codes_size, fin);
+
+    //elog(INFO, "codes_size: %d\n", codes_size);
+    pq->centroids = (float*)palloc(sizeof(float) * pq->code_nums * pq->d);
+    if (pq->centroids == NULL) {
+        elog(ERROR, "Memory allocation failed for centroids");
+        exit(-1);
+    }
+    fread(pq->centroids, sizeof(float), pq->code_nums * pq->d, fin);
+    fclose(fin);
 }
 
-void PQDist_free(PQDist *pq)
-{
-	if (pq->codes != NULL)
-	{
-		free(pq->codes);
+void PQCaculate_Codes(PQDist* pq, float* vec, uint8_t* encode_vec){
+	for (int j = 0; j < pq->m; ++j) {
+		float* subvec = vec + j * pq->d_pq;
+		float min_dist = 1e10;
+		int best_centroid = 0;
+
+		for (int k = 0; k < pq->code_nums; ++k) {
+			float* centroid = pq->centroids + (j * pq->code_nums + k) * pq->d_pq;
+			float dist = 0.0;
+
+			for (int l = 0; l < pq->d_pq; ++l) {
+				float diff = subvec[l] - centroid[l];
+				dist += diff * diff;
+			}
+
+			if (dist < min_dist) {
+				min_dist = dist;
+				best_centroid = k;
+			}
+		}
+
+		encode_vec[j] = best_centroid;
 	}
-	if (pq->centroids != NULL)
-	{
-		free(pq->centroids);
-	}
-	if (pq->pq_dist_cache_data != NULL)
-	{
-		free(pq->pq_dist_cache_data);
-	}
+
 }
-uint8_t *get_centroids_id(PQDist *pq, int id)
-{
 
-	const uint8_t *code = pq->codes + id * (pq->m * pq->nbits / 8);
-	uint8_t *centroids_id = (uint8_t *)palloc(pq->m * sizeof(uint8_t));
-	memset(centroids_id, 0, pq->m);
+void PQDist_free(PQDist* pq) {
+    if (pq->codes != NULL) {
+        free(pq->codes);
+    }
+    if (pq->centroids != NULL) {
+        free(pq->centroids);
+    }
+    if (pq->pq_dist_cache_data != NULL) {
+        free(pq->pq_dist_cache_data);
+    }
+}
+uint8_t* get_centroids_id(PQDist *pq, int id) {
+	
+    const uint8_t *code = pq->codes + id * (pq->m * pq->nbits / 8);
+    uint8_t *centroids_id = (uint8_t*)palloc(pq->m * sizeof(uint8_t));
+    memset(centroids_id, 0, pq->m);
 
-	if (pq->nbits == 8)
-	{
-		size_t num_ids = pq->m;
-		size_t num_bytes = num_ids;
+    if (pq->nbits == 8) {
+        size_t num_ids = pq->m;
+        size_t num_bytes = num_ids;
 
-		size_t i = 0;
+        size_t i = 0;
 		size_t j = 0;
 
-		for (; i + 32 <= num_bytes; i += 32)
-		{
-			__m256i input = _mm256_loadu_si256((__m256i const *)(code + i));
-			_mm256_storeu_si256((__m256i *)(centroids_id + i), input);
-		}
-		for (; i < num_bytes; i++)
-			centroids_id[i] = code[i];
-	}
-	else
-	{
-		size_t num_ids = pq->m;
-		size_t num_bytes = (num_ids + 1) / 2;
+        for (; i + 32 <= num_bytes; i += 32) {
+            __m256i input = _mm256_loadu_si256((__m256i const*)(code + i));
+            _mm256_storeu_si256((__m256i*)(centroids_id + i), input);
+        }
+        for (; i < num_bytes; i++)
+            centroids_id[i] = code[i];
+    } else {
+        size_t num_ids = pq->m;
+        size_t num_bytes = (num_ids + 1) / 2;
 
-		size_t i = 0;
-		size_t j = 0;
+        size_t i = 0;
+        size_t j = 0;
 
-		for (; i + 32 <= num_bytes; i += 32, j += 64)
-		{
-			__m256i input = _mm256_loadu_si256((__m256i const *)(code + i));
+        for (; i + 32 <= num_bytes; i += 32, j += 64) {
+            __m256i input = _mm256_loadu_si256((__m256i const*)(code + i));
 
-			__m256i low_mask = _mm256_set1_epi8(0x0F);
-			__m256i low = _mm256_and_si256(input, low_mask);
+            __m256i low_mask = _mm256_set1_epi8(0x0F);
+            __m256i low = _mm256_and_si256(input, low_mask);
 
-			__m256i high = _mm256_srli_epi16(input, 4);
-			high = _mm256_and_si256(high, low_mask);
+            __m256i high = _mm256_srli_epi16(input, 4);
+            high = _mm256_and_si256(high, low_mask);
 
-			__m256i interleave_lo = _mm256_unpacklo_epi8(low, high);
-			__m256i interleave_hi = _mm256_unpackhi_epi8(low, high);
+            __m256i interleave_lo = _mm256_unpacklo_epi8(low, high);
+            __m256i interleave_hi = _mm256_unpackhi_epi8(low, high);
 
-			__m128i seg0 = _mm256_extracti128_si256(interleave_lo, 0);
-			__m128i seg1 = _mm256_extracti128_si256(interleave_hi, 0);
-			__m128i seg2 = _mm256_extracti128_si256(interleave_lo, 1);
-			__m128i seg3 = _mm256_extracti128_si256(interleave_hi, 1);
+            __m128i seg0 = _mm256_extracti128_si256(interleave_lo, 0);
+            __m128i seg1 = _mm256_extracti128_si256(interleave_hi, 0);
+            __m128i seg2 = _mm256_extracti128_si256(interleave_lo, 1);
+            __m128i seg3 = _mm256_extracti128_si256(interleave_hi, 1);
 
-			_mm_storeu_si128((__m128i *)(centroids_id + j), seg0);
-			_mm_storeu_si128((__m128i *)(centroids_id + j + 16), seg1);
-			_mm_storeu_si128((__m128i *)(centroids_id + j + 32), seg2);
-			_mm_storeu_si128((__m128i *)(centroids_id + j + 48), seg3);
-		}
+            _mm_storeu_si128((__m128i*)(centroids_id + j), seg0);
+            _mm_storeu_si128((__m128i*)(centroids_id + j + 16), seg1);
+            _mm_storeu_si128((__m128i*)(centroids_id + j + 32), seg2);
+            _mm_storeu_si128((__m128i*)(centroids_id + j + 48), seg3);
+        }
 
-		for (; i < num_bytes; ++i, j += 2)
-		{
-			centroids_id[j] = code[i] & 0x0F;
-			centroids_id[j + 1] = (code[i] >> 4) & 0x0F;
-		}
-	}
-	return centroids_id;
+        for (; i < num_bytes; ++i, j += 2) {
+            centroids_id[j] = code[i] & 0x0F;
+            centroids_id[j + 1] = (code[i] >> 4) & 0x0F;
+        }
+    }
+    return centroids_id;
 }
-float *get_centroid_data(PQDist *pqdist, int quantizer, int code_id)
-{
-	return pqdist->centroids + (quantizer * pqdist->code_nums + code_id) * pqdist->d_pq;
+float* get_centroid_data(PQDist* pqdist, int quantizer, int code_id) {
+    return pqdist->centroids + (quantizer * pqdist->code_nums + code_id) * pqdist->d_pq;
 }
 float calc_dist(int d, float *vec1, float *vec2)
 {
 	float distance = 0;
-	for (int i = 0; i < d; i++)
-	{
+    for(int i = 0; i < d; i++){
 		distance += (vec1[i] - vec2[i]) * (vec1[i] - vec2[i]);
 	}
 	return distance;
 }
-void clear_pq_dist_cache(PQDist *pqdist)
+void clear_pq_dist_cache(PQDist* pqdist)
 {
-	memset(pqdist->pq_dist_cache_data, 0, (pqdist->m * pqdist->code_nums) * sizeof(float));
+    memset(pqdist->pq_dist_cache_data, 0, (pqdist->m*pqdist->code_nums) * sizeof(float));
 }
 
-void load_query_data_and_cache(PQDist *pqdist, const float *_qdata)
-{
+void load_query_data_and_cache(PQDist* pqdist, const float *_qdata) {
 
-	memcpy(pqdist->qdata, _qdata, sizeof(float) * pqdist->d);
 
-	clear_pq_dist_cache(pqdist);
+    memcpy(pqdist->qdata, _qdata, sizeof(float) * pqdist->d);
 
-	pqdist->use_cache = true;
+    clear_pq_dist_cache(pqdist);
 
-	for (int i = 0; i < pqdist->m * pqdist->code_nums; i++)
-	{
-		pqdist->pq_dist_cache_data[i] = calc_dist(pqdist->d_pq, get_centroid_data(pqdist, i / pqdist->code_nums, i % pqdist->code_nums), pqdist->qdata + (i / pqdist->code_nums) * pqdist->d_pq);
-	}
+    pqdist->use_cache = true;
+    
+    for (int i = 0; i < pqdist->m * pqdist->code_nums; i++) {
+        pqdist->pq_dist_cache_data[i] = calc_dist(pqdist->d_pq, get_centroid_data(pqdist, i / pqdist->code_nums, i % pqdist->code_nums), pqdist->qdata + (i / pqdist->code_nums) * pqdist->d_pq);
+    }
 
-	__builtin_prefetch(pqdist->pq_dist_cache_data, 0, 3);
-	size_t prefetch_size = 128;
-	for (int i = 0; i < pqdist->table_size * 4; i += prefetch_size / 4)
-	{
-		__builtin_prefetch(pqdist->pq_dist_cache_data + i, 0, 3);
-	}
+
+    __builtin_prefetch(pqdist->pq_dist_cache_data, 0, 3);
+    size_t prefetch_size = 128;
+    for (int i = 0; i < pqdist->table_size * 4; i += prefetch_size / 4) {
+        __builtin_prefetch(pqdist->pq_dist_cache_data + i, 0, 3);
+    }
+	
 }
-float calc_dist_pq_simd(PQDist *pqdist, int data_id, float *qdata, bool use_cache)
-{
-	float dist = 0;
-	uint8_t *ids = get_centroids_id(pqdist, data_id);
-	__m256 simd_dist = _mm256_setzero_ps();
-	int q;
-	const int stride = 8;
+float calc_dist_pq_simd(PQDist* pqdist, int data_id, float *qdata, bool use_cache) {
+    float dist = 0;
+    uint8_t *ids = get_centroids_id(pqdist, data_id);
+    __m256 simd_dist = _mm256_setzero_ps();
+    int q;
+    const int stride = 8;
 
-	for (q = 0; q <= pqdist->m - stride; q += stride)
-	{
-		__m128i id_vec_128 = _mm_loadl_epi64((__m128i *)(ids + q));
-		__m256i id_vec = _mm256_cvtepu8_epi32(id_vec_128);
+    for (q = 0; q <= pqdist->m - stride; q += stride) {
+        __m128i id_vec_128 = _mm_loadl_epi64((__m128i*)(ids + q));
+        __m256i id_vec = _mm256_cvtepu8_epi32(id_vec_128);
 
-		__m256i offset_vec = _mm256_setr_epi32(0 * pqdist->code_nums, 1 * pqdist->code_nums, 2 * pqdist->code_nums, 3 * pqdist->code_nums,
-											   4 * pqdist->code_nums, 5 * pqdist->code_nums, 6 * pqdist->code_nums, 7 * pqdist->code_nums);
+        __m256i offset_vec = _mm256_setr_epi32(0 * pqdist->code_nums, 1 * pqdist->code_nums, 2 * pqdist->code_nums, 3 * pqdist->code_nums,
+                                               4 * pqdist->code_nums, 5 * pqdist->code_nums, 6 * pqdist->code_nums, 7 * pqdist->code_nums);
 
-		id_vec = _mm256_add_epi32(id_vec, offset_vec);
-		__m256 dist_vec = _mm256_i32gather_ps(pqdist->pq_dist_cache_data + q * pqdist->code_nums, id_vec, 4);
-		simd_dist = _mm256_add_ps(simd_dist, dist_vec);
-	}
+        id_vec = _mm256_add_epi32(id_vec, offset_vec);
+        __m256 dist_vec = _mm256_i32gather_ps(pqdist->pq_dist_cache_data + q * pqdist->code_nums, id_vec, 4);
+        simd_dist = _mm256_add_ps(simd_dist, dist_vec);
+    }
 
-	simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
-	simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
 
-	float dist_array[8];
-	_mm256_storeu_ps(dist_array, simd_dist);
-	dist += dist_array[0] + dist_array[4];
+    float dist_array[8];
+    _mm256_storeu_ps(dist_array, simd_dist);
+    dist += dist_array[0] + dist_array[4];
 
-	for (; q < pqdist->m; q++)
-	{
-		dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
-	}
+    for (; q < pqdist->m; q++) {
+        dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
+    }
 
-	return dist;
+    return dist;
 }
-float calc_dist_pq_loaded_simd(PQDist *pqdist, int data_id)
-{
-	// elog(INFO, "data_id: %d", data_id);
-	float distance = calc_dist_pq_simd(pqdist, data_id, pqdist->qdata, pqdist->use_cache);
-
+float calc_dist_pq_loaded_simd(PQDist* pqdist, int data_id) {
+    //elog(INFO, "data_id: %d", data_id);
+    float distance = calc_dist_pq_simd(pqdist, data_id, pqdist->qdata, pqdist->use_cache);
+	
 	return distance;
 }
 
-float calc_dist_pq_loaded_by_id(PQDist *pqdist, uint8_t *ids)
-{
-	float distance = calc_dist_pq_by_id(pqdist, ids, pqdist->qdata, pqdist->use_cache);
+float calc_dist_pq_loaded_by_id(PQDist* pqdist, uint8_t* ids) {
+	//elog(INFO, "data_id: %d", data_id);
+	//uint8_t* ids = (uint8_t*)palloc(pqdist->m * sizeof(uint8_t));
+	//PQCaculate_Codes(pqdist, vec, ids);
 
-	return distance;
-}
-
-float calc_dist_pq_by_id(PQDist *pqdist, uint8_t *ids, float *qdata, bool use_cache)
-{
 	float dist = 0;
-	__m256 simd_dist = _mm256_setzero_ps();
-	int q;
-	const int stride = 8;
+    __m256 simd_dist = _mm256_setzero_ps();
+    int q;
+    const int stride = 8;
 
-	for (q = 0; q <= pqdist->m - stride; q += stride)
-	{
-		__m128i id_vec_128 = _mm_loadl_epi64((__m128i *)(ids + q));
-		__m256i id_vec = _mm256_cvtepu8_epi32(id_vec_128);
+    for (q = 0; q <= pqdist->m - stride; q += stride) {
+        __m128i id_vec_128 = _mm_loadl_epi64((__m128i*)(ids + q));
+        __m256i id_vec = _mm256_cvtepu8_epi32(id_vec_128);
 
-		__m256i offset_vec = _mm256_setr_epi32(0 * pqdist->code_nums, 1 * pqdist->code_nums, 2 * pqdist->code_nums, 3 * pqdist->code_nums,
-											   4 * pqdist->code_nums, 5 * pqdist->code_nums, 6 * pqdist->code_nums, 7 * pqdist->code_nums);
+        __m256i offset_vec = _mm256_setr_epi32(0 * pqdist->code_nums, 1 * pqdist->code_nums, 2 * pqdist->code_nums, 3 * pqdist->code_nums,
+                                               4 * pqdist->code_nums, 5 * pqdist->code_nums, 6 * pqdist->code_nums, 7 * pqdist->code_nums);
 
-		id_vec = _mm256_add_epi32(id_vec, offset_vec);
-		__m256 dist_vec = _mm256_i32gather_ps(pqdist->pq_dist_cache_data + q * pqdist->code_nums, id_vec, 4);
-		simd_dist = _mm256_add_ps(simd_dist, dist_vec);
-	}
+        id_vec = _mm256_add_epi32(id_vec, offset_vec);
+        __m256 dist_vec = _mm256_i32gather_ps(pqdist->pq_dist_cache_data + q * pqdist->code_nums, id_vec, 4);
+        simd_dist = _mm256_add_ps(simd_dist, dist_vec);
+    }
 
-	simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
-	simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
+    simd_dist = _mm256_hadd_ps(simd_dist, simd_dist);
 
-	float dist_array[8];
-	_mm256_storeu_ps(dist_array, simd_dist);
-	dist += dist_array[0] + dist_array[4];
+    float dist_array[8];
+    _mm256_storeu_ps(dist_array, simd_dist);
+    dist += dist_array[0] + dist_array[4];
 
-	for (; q < pqdist->m; q++)
-	{
-		dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
-	}
-
-	return dist;
+    for (; q < pqdist->m; q++) {
+        dist += pqdist->pq_dist_cache_data[q * pqdist->code_nums + ids[q]];
+    }
+    return dist;
 }

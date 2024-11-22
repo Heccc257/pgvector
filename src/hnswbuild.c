@@ -147,6 +147,7 @@ HnswBuildAppendPage(Relation index, Buffer *buf, Page *page, ForkNumber forkNum)
 static void
 CreateGraphPages(HnswBuildState *buildstate)
 {
+	elog(INFO, "CreateGraphPages");
 	Relation index = buildstate->index;
 	ForkNumber forkNum = buildstate->forkNum;
 	Size maxSize;
@@ -187,7 +188,7 @@ CreateGraphPages(HnswBuildState *buildstate)
 
 		/* Calculate sizes */
 		etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(valuePtr));
-		Size neighborCount = (2) * buildstate->m;
+		Size neighborCount = 2 * buildstate->m;
 		ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (buildstate->m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m);
 		combinedSize = etupSize + ntupSize + sizeof(ItemIdData);
 
@@ -497,7 +498,6 @@ InsertTupleInMemory(HnswBuildState *buildstate, HnswElement element)
 static bool
 InsertTuple(Relation index, Datum *values, bool *isnull, ItemPointer heaptid, HnswBuildState *buildstate)
 {
-	//elog(INFO, "begin to insert tuple\n");
 	const HnswTypeInfo *typeInfo = buildstate->typeInfo;
 	HnswGraph *graph = buildstate->graph;
 	HnswElement element;
@@ -771,8 +771,7 @@ InitBuildState(HnswBuildState *buildstate, Relation heap, Relation index, IndexI
 	buildstate->hnswleader = NULL;
 	buildstate->hnswshared = NULL;
 	buildstate->hnswarea = NULL;
-	
-	//elog(INFO, "buildstate initialized");
+
 }
 
 /*

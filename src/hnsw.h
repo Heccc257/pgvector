@@ -165,8 +165,9 @@ struct HnswElementData
 	OffsetNumber offno;
 	OffsetNumber neighborOffno;
 	BlockNumber neighborPage;
-	DatumPtr	value;
 	Encode_DataPtr    encode_data;
+	DatumPtr	value;
+	
 	LWLock		lock;
 };
 

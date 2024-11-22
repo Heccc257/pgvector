@@ -1,3 +1,4 @@
+SET maintenance_work_mem = '20GB';
 DROP TABLE IF EXISTS test_vectors;
 CREATE TABLE test_vectors (
     id serial PRIMARY KEY,
