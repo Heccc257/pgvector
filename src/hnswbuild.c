@@ -147,7 +147,7 @@ HnswBuildAppendPage(Relation index, Buffer *buf, Page *page, ForkNumber forkNum)
 static void
 CreateGraphPages(HnswBuildState *buildstate)
 {
-	elog(INFO, "CreateGraphPages");
+	//elog(INFO, "CreateGraphPages");
 	Relation index = buildstate->index;
 	ForkNumber forkNum = buildstate->forkNum;
 	Size maxSize;
@@ -214,10 +214,6 @@ CreateGraphPages(HnswBuildState *buildstate)
 		{
 			element->neighborPage = element->blkno + 1;
 			element->neighborOffno = FirstOffsetNumber;
-		}
-        if(element->neighborPage > 100000)
-		{
-			elog(ERROR, "element->neighborPage:%d", element->neighborPage);
 		}
 		ItemPointerSet(&etup->neighbortid, element->neighborPage, element->neighborOffno);
 

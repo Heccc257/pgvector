@@ -214,7 +214,7 @@ RepairGraphElement(HnswVacuumState * vacuumstate, HnswElement element, HnswEleme
 
 	/* Update neighbor tuple */
 	/* Do this before getting page to minimize locking */
-	HnswSetNeighborTuple(base, ntup, element, m);
+	HnswSetNeighborTuple(base, ntup, element, m, use_pq, pqdist);
 
 	/* Get neighbor page */
 	buf = ReadBufferExtended(index, MAIN_FORKNUM, element->neighborPage, RBM_NORMAL, bas);
