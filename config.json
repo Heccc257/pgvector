@@ -1,0 +1,15 @@
+{ 
+    "pq_m_list": [120, 240, 320, 480], 
+    "data_path": "/share/ann_benchmarks/gist/train.tsv",
+    "nbits_list": [4, 8], 
+    "output_dir": "/root/python_gist/", 
+    "max_elements": 10000, 
+    "d": 960, 
+    "ef_construction": 200, 
+    "opq": 1, 
+    "opq_matrix_file": "/root/python_gist/opq_matrix_100000_240_4_100000_100",
+    "sample_size": 20,
+    "M": 120,
+    "k": 16,
+    "max_iter": 2
+}
