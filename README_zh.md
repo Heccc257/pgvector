@@ -69,4 +69,4 @@ opq.py, construct.py也均可单独运行，运行`python3 xxx.py --config_file 
 使用的方法非常简单，只需要在创建索引的时候在WITH里指定use_PQ, pq_m, nbist参数。   
 示例：`CREATE INDEX hnswpq_idx ON test_vectors USING hnsw (vec vector_l2_ops) WITH (use_PQ=1,pq_m=120,nbits=4);`
 
-**另外，请新建路径为`/root/pqfile.pth`的文件里面写明pq_dist_file辅助文件的路径**
+**另外，由于不太清楚怎么新增一个字符串类型参数，采用了一种很dirty的方式，新建路径为`/root/pqfile.pth`的文件里面写明pq_dist_file辅助文件的路径**
