@@ -6,6 +6,7 @@ import pickle
 import struct
 import json
 import argparse
+import os
 
 def load_config(config_file):
     with open(config_file, 'r') as f:
@@ -25,7 +26,6 @@ if __name__ == '__main__':
     output_dir = config["output_dir"]
     max_elements = config["max_elements"]
     d = config["d"]
-    ef_construction = config.get("ef_construction", 200)
     opq = config.get("opq", 0)
     opq_matrix_file = config.get("opq_matrix_file", "")
 
@@ -57,8 +57,8 @@ if __name__ == '__main__':
             cents = faiss.vector_float_to_array(pq.pq.centroids).reshape(-1)
 
             integer_data = [max_elements, d, pq_m, nbits]
-
-            with open(f'{output_dir}/encoded_data_opq_{max_elements}_{pq_m}_{nbits}', 'wb') as file:
+            file_name = f'encoded_data_{config.get("opq")}_{max_elements}_{pq_m}_{nbits}'
+            with open(os.path.join(config["output_dir"], file_name), 'wb') as file:
                 header = struct.pack('iiii', *integer_data)
                 file.write(header)
                 for val in cents:

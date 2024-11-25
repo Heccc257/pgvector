@@ -9,7 +9,8 @@ def run_command(command):
         sys.exit(e.returncode)
 
 if __name__ == "__main__":
+    
     run_command("python3 opq.py --config_file config.json")
     run_command("python3 construct.py --config_file config.json")
     
-    print("Both scripts ran successfully.")
+    print("scripts ran successfully.")
