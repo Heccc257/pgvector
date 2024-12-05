@@ -189,7 +189,7 @@ CreateGraphPages(HnswBuildState *buildstate)
 		/* Calculate sizes */
 		etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(valuePtr));
 		Size neighborCount = 2 * buildstate->m;
-		ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (buildstate->m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m);
+		ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (buildstate->m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m*buildstate->nbits/8);
 		combinedSize = etupSize + ntupSize + sizeof(ItemIdData);
 
 		/* Initial size check */
@@ -267,7 +267,7 @@ WriteNeighborTuples(HnswBuildState *buildstate)
 		Buffer buf;
 		Page page;
 		Size neighborCount = (2) * m;
-		Size ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m);
+		Size ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m*buildstate->nbits/8);
 
 		/* Update iterator */
 		iter = element->next;
