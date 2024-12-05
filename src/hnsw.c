@@ -11,6 +11,7 @@
 #include "miscadmin.h"
 #include "utils/guc.h"
 #include "utils/selfuncs.h"
+#include "utils/elog.h"
 
 #if PG_VERSION_NUM < 150000
 #define MarkGUCPrefixReserved(x) EmitWarningsOnPlaceholders(x)
@@ -70,6 +71,29 @@ HnswInit(void)
 					  ,AccessExclusiveLock
 #endif
 		);
+    add_int_reloption(hnsw_relopt_kind, "use_pq", "Whether to use Product Quantization",
+					  HNSW_DEFAULT_USE_PQ, HNSW_MIN_USE_PQ, HNSW_MAX_USE_PQ
+#if PG_VERSION_NUM >= 130000
+					  ,AccessExclusiveLock
+#endif
+		);
+	add_int_reloption(hnsw_relopt_kind, "pq_m", "Number of subvectors in Product Quantization",
+					  HNSW_DEFAULT_PQ_M, HNSW_MIN_PQ_M, HNSW_MAX_PQ_M
+#if PG_VERSION_NUM >= 130000
+					  ,AccessExclusiveLock
+#endif
+		);
+	add_int_reloption(hnsw_relopt_kind, "nbits", "Number of bits in Product Quantization",
+					  HNSW_DEFAULT_NBITS, HNSW_MIN_NBITS, HNSW_MAX_NBITS
+#if PG_VERSION_NUM >= 130000
+					  ,AccessExclusiveLock
+#endif
+		);
+
+	add_string_reloption(hnsw_relopt_kind, "pq_dist_file_name", "File name for Product Quantization distance",
+					  "/root/python_gist/encoded_data_120_4", NULL);
+	
+	
 
 	DefineCustomIntVariable("hnsw.ef_search", "Sets the size of the dynamic candidate list for search",
 							"Valid range is 1..1000.", &hnsw_ef_search,
@@ -152,6 +176,10 @@ hnswoptions(Datum reloptions, bool validate)
 	static const relopt_parse_elt tab[] = {
 		{"m", RELOPT_TYPE_INT, offsetof(HnswOptions, m)},
 		{"ef_construction", RELOPT_TYPE_INT, offsetof(HnswOptions, efConstruction)},
+		{"use_pq", RELOPT_TYPE_INT, offsetof(HnswOptions, use_pq)},
+		{"pq_m", RELOPT_TYPE_INT, offsetof(HnswOptions, pq_m)},
+		{"nbits", RELOPT_TYPE_INT, offsetof(HnswOptions, nbits)},
+		{"pq_dist_file_name", RELOPT_TYPE_STRING, offsetof(HnswOptions, pq_dist_file_name)},
 	};
 
 #if PG_VERSION_NUM >= 130000
@@ -258,3 +286,4 @@ hnswhandler(PG_FUNCTION_ARGS)
 
 	PG_RETURN_POINTER(amroutine);
 }
+

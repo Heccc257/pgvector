@@ -261,6 +261,8 @@ CREATE ACCESS METHOD hnsw TYPE INDEX HANDLER hnswhandler;
 
 COMMENT ON ACCESS METHOD hnsw IS 'hnsw index access method';
 
+
+
 -- access method private functions
 
 CREATE FUNCTION ivfflat_halfvec_support(internal) RETURNS internal

@@ -137,6 +137,8 @@ HnswInsertAppendPage(Relation index, Buffer *nbuf, Page *npage, GenericXLogState
 static void
 AddElementOnDisk(Relation index, HnswElement e, int m, BlockNumber insertPage, BlockNumber *updatedInsertPage, bool building)
 {
+	elog(INFO, "AddElementOnDisk");
+
 	Buffer		buf;
 	Page		page;
 	GenericXLogState *state;
@@ -157,7 +159,7 @@ AddElementOnDisk(Relation index, HnswElement e, int m, BlockNumber insertPage, B
 
 	/* Calculate sizes */
 	etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(HnswPtrAccess(base, e->value)));
-	ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(e->level, m);
+	ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(e->level, m) + (1 + (e->level + 2) * m) * HnswGetNbits(index) / 8;
 	combinedSize = etupSize + ntupSize + sizeof(ItemIdData);
 	maxSize = HNSW_MAX_SIZE;
 	minCombinedSize = etupSize + HNSW_NEIGHBOR_TUPLE_SIZE(0, m) + sizeof(ItemIdData);
@@ -168,7 +170,9 @@ AddElementOnDisk(Relation index, HnswElement e, int m, BlockNumber insertPage, B
 
 	/* Prepare neighbor tuple */
 	ntup = palloc0(ntupSize);
-	HnswSetNeighborTuple(base, ntup, e, m);
+	int use_pq = HnswGetUsePQ(index);
+	PQDist* pqdist = (PQDist*)palloc(sizeof(PQDist));
+	HnswSetNeighborTuple(base, ntup, e, m, use_pq, pqdist);
 
 	/* Find a page (or two if needed) to insert the tuples */
 	for (;;)
@@ -582,6 +586,9 @@ HnswInsertTupleOnDisk(Relation index, Datum value, Datum *values, bool *isnull, 
 	HnswElement element;
 	int			m;
 	int			efConstruction = HnswGetEfConstruction(index);
+	int use_pq = HnswGetUsePQ(index);
+	PQDist*		pqdist = HnswGetPQDist(index);
+    
 	FmgrInfo   *procinfo = index_getprocinfo(index, 1, HNSW_DISTANCE_PROC);
 	Oid			collation = index->rd_indcollation[0];
 	LOCKMODE	lockmode = ShareLock;
@@ -598,7 +605,7 @@ HnswInsertTupleOnDisk(Relation index, Datum value, Datum *values, bool *isnull, 
 	HnswGetMetaPageInfo(index, &m, &entryPoint);
 
 	/* Create an element */
-	element = HnswInitElement(base, heap_tid, m, HnswGetMl(m), HnswGetMaxLevel(m), NULL);
+	element = HnswInitElement(base, heap_tid, m, HnswGetMl(m), HnswGetMaxLevel(m), use_pq, NULL, pqdist);
 	HnswPtrStore(base, element->value, DatumGetPointer(value));
 
 	/* Prevent concurrent inserts when likely updating entry point */
@@ -616,7 +623,7 @@ HnswInsertTupleOnDisk(Relation index, Datum value, Datum *values, bool *isnull, 
 	}
 
 	/* Find neighbors for element */
-	HnswFindElementNeighbors(base, element, entryPoint, index, procinfo, collation, m, efConstruction, false);
+	HnswFindElementNeighbors(base, element, entryPoint, index, procinfo, collation, m, efConstruction, false, use_pq, pqdist);
 
 	/* Update graph on disk */
 	UpdateGraphOnDisk(index, procinfo, collation, element, m, efConstruction, entryPoint, building);

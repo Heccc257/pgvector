@@ -6,22 +6,25 @@
 #include "storage/bufmgr.h"
 #include "storage/lmgr.h"
 #include "utils/memutils.h"
-
+#include "utils/rel.h"
 /*
  * Algorithm 5 from paper
  */
 static List *
 GetScanItems(IndexScanDesc scan, Datum q)
 {
-	HnswScanOpaque so = (HnswScanOpaque) scan->opaque;
-	Relation	index = scan->indexRelation;
-	FmgrInfo   *procinfo = so->procinfo;
-	Oid			collation = so->collation;
-	List	   *ep;
-	List	   *w;
-	int			m;
+
+	const float *query = (const float *)DatumGetPointer(q) + 2;
+
+	HnswScanOpaque so = (HnswScanOpaque)scan->opaque;
+	Relation index = scan->indexRelation;
+	FmgrInfo *procinfo = so->procinfo;
+	Oid collation = so->collation;
+	List *ep;
+	List *w;
+	int m;
 	HnswElement entryPoint;
-	char	   *base = NULL;
+	char *base = NULL;
 
 	/* Get m and entry point */
 	HnswGetMetaPageInfo(index, &m, &entryPoint);
@@ -29,15 +32,22 @@ GetScanItems(IndexScanDesc scan, Datum q)
 	if (entryPoint == NULL)
 		return NIL;
 
-	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, false));
+	int use_pq = HnswGetUsePQ(index);
+	PQDist* pqdist;
+	if (use_pq)
+	{
+		pqdist = HnswGetPQDist(index);
+		load_query_data_and_cache(pqdist, query);
+	}
+	int pq_m = HnswGetPqM(index);
+	ep = list_make1(HnswEntryCandidate(base, entryPoint, q, index, procinfo, collation, false, 0, NULL));
 
 	for (int lc = entryPoint->level; lc >= 1; lc--)
 	{
-		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, false, NULL);
+		w = HnswSearchLayer(base, q, ep, 1, lc, index, procinfo, collation, m, false, NULL, use_pq, pqdist, true);
 		ep = w;
 	}
-
-	return HnswSearchLayer(base, q, ep, hnsw_ef_search, 0, index, procinfo, collation, m, false, NULL);
+	return HnswSearchLayer(base, q, ep, hnsw_ef_search, 0, index, procinfo, collation, m, false, NULL, use_pq, pqdist, true);
 }
 
 /*
@@ -46,8 +56,9 @@ GetScanItems(IndexScanDesc scan, Datum q)
 static Datum
 GetScanValue(IndexScanDesc scan)
 {
-	HnswScanOpaque so = (HnswScanOpaque) scan->opaque;
-	Datum		value;
+
+	HnswScanOpaque so = (HnswScanOpaque)scan->opaque;
+	Datum value;
 
 	if (scan->orderByData->sk_flags & SK_ISNULL)
 		value = PointerGetDatum(NULL);
@@ -73,12 +84,22 @@ GetScanValue(IndexScanDesc scan)
 IndexScanDesc
 hnswbeginscan(Relation index, int nkeys, int norderbys)
 {
+	int use_pq = HnswGetUsePQ(index);
+
+	PQDist *pqdist = (PQDist *)palloc(sizeof(PQDist));
+	if (use_pq)
+	{
+		const char *pq_dist_file_name = HnswGetPQDistFileName(index);
+		// PQDist_load(pqdist, pq_dist_file_name);
+		HnswSetPQDist(index, pq_dist_file_name);
+	}
+
 	IndexScanDesc scan;
 	HnswScanOpaque so;
 
 	scan = RelationGetIndexScan(index, nkeys, norderbys);
 
-	so = (HnswScanOpaque) palloc(sizeof(HnswScanOpaqueData));
+	so = (HnswScanOpaque)palloc(sizeof(HnswScanOpaqueData));
 	so->typeInfo = HnswGetTypeInfo(index);
 	so->first = true;
 	so->tmpCtx = AllocSetContextCreate(CurrentMemoryContext,
@@ -98,10 +119,9 @@ hnswbeginscan(Relation index, int nkeys, int norderbys)
 /*
  * Start or restart an index scan
  */
-void
-hnswrescan(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int norderbys)
+void hnswrescan(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int norderbys)
 {
-	HnswScanOpaque so = (HnswScanOpaque) scan->opaque;
+	HnswScanOpaque so = (HnswScanOpaque)scan->opaque;
 
 	so->first = true;
 	MemoryContextReset(so->tmpCtx);
@@ -116,10 +136,10 @@ hnswrescan(IndexScanDesc scan, ScanKey keys, int nkeys, ScanKey orderbys, int no
 /*
  * Fetch the next tuple in the given scan
  */
-bool
-hnswgettuple(IndexScanDesc scan, ScanDirection dir)
+bool hnswgettuple(IndexScanDesc scan, ScanDirection dir)
 {
-	HnswScanOpaque so = (HnswScanOpaque) scan->opaque;
+
+	HnswScanOpaque so = (HnswScanOpaque)scan->opaque;
 	MemoryContext oldCtx = MemoryContextSwitchTo(so->tmpCtx);
 
 	/*
@@ -130,7 +150,7 @@ hnswgettuple(IndexScanDesc scan, ScanDirection dir)
 
 	if (so->first)
 	{
-		Datum		value;
+		Datum value;
 
 		/* Count index scan for stats */
 		pgstat_count_index_scan(scan->indexRelation);
@@ -167,7 +187,7 @@ hnswgettuple(IndexScanDesc scan, ScanDirection dir)
 
 	while (list_length(so->w) > 0)
 	{
-		char	   *base = NULL;
+		char *base = NULL;
 		HnswCandidate *hc = llast(so->w);
 		HnswElement element = HnswPtrAccess(base, hc->element);
 		ItemPointer heaptid;
@@ -196,10 +216,10 @@ hnswgettuple(IndexScanDesc scan, ScanDirection dir)
 /*
  * End a scan and release resources
  */
-void
-hnswendscan(IndexScanDesc scan)
+void hnswendscan(IndexScanDesc scan)
 {
-	HnswScanOpaque so = (HnswScanOpaque) scan->opaque;
+
+	HnswScanOpaque so = (HnswScanOpaque)scan->opaque;
 
 	MemoryContextDelete(so->tmpCtx);
 
