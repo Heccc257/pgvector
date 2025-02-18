@@ -85,7 +85,7 @@ if __name__ == '__main__':
         data = np.array(data)
         indices = np.random.choice(data.shape[0], size=config['sample_size'], replace=False)
         X = np.take(data, indices, axis=0)
-        R, _, _, _ = optimize_product_quantization(X, config['M'], config['k'], config['max_iter'])
+        R, _, _ = optimize_product_quantization(X, config['M'], config['k'], config['max_iter'])
         R.astype(np.float32).tofile(config['opq_matrix_file'])
         print(f'Saved R to {config["opq_matrix_file"]}')
     else:
