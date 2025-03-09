@@ -7,7 +7,7 @@ import struct
 import json
 import argparse
 import os
-
+from read_dataset import read_dataset
 def load_config(config_file):
     with open(config_file, 'r') as f:
         config = json.load(f)
@@ -29,21 +29,12 @@ if __name__ == '__main__':
     opq = config.get("opq", 0)
     opq_matrix_file = config.get("opq_matrix_file", "")
 
-    data = []
-    num_elements = 0
 
-    with open(data_path, 'r') as f:
-        for line in f:
-            if num_elements >= max_elements:
-                break
-            line = line.strip().split('\t')
-            data.append([float(x) for x in line])
-            num_elements += 1
-            if num_elements % 10000 == 0:
-                print(f'Reading data: {num_elements}')
-    data = np.array(data)
 
-    if opq:
+
+    data = read_dataset(config['data_path'], max_elements=max_elements)
+
+    if opq == 1:
         R = np.fromfile(opq_matrix_file, dtype=np.float32).reshape(d, d)
         data = data @ R
 

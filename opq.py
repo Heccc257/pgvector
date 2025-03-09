@@ -5,7 +5,7 @@ from sklearn.cluster import KMeans
 from scipy.linalg import orthogonal_procrustes
 import random
 from tqdm import tqdm
-
+from read_dataset import read_dataset
 def compute_distortion(X, Y):
     return np.sum((X - Y) ** 2)
 
@@ -72,17 +72,8 @@ if __name__ == '__main__':
         np.random.seed(0)
         random.seed(0)
         max_elements, num_elements = config.get('max_elements', 100000), 0
-        data = []
-        with open(config['data_path'], 'r') as f:
-            for line in f:
-                if num_elements >= max_elements:
-                    break
-                line = line.strip().split('\t')
-                data.append([float(x) for x in line])
-                num_elements += 1
-                if num_elements % 10000 == 0:
-                    print(f'Reading data: {num_elements}')
-        data = np.array(data)
+        
+        data = read_dataset(config['data_path'], max_elements=max_elements)
         indices = np.random.choice(data.shape[0], size=config['sample_size'], replace=False)
         X = np.take(data, indices, axis=0)
         R, _, _ = optimize_product_quantization(X, config['M'], config['k'], config['max_iter'])
