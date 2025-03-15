@@ -1,5 +1,5 @@
 #include "postgres.h"
-
+#include <errno.h>
 #include <math.h>
 #include "pq_dist.h"
 #include <stdio.h>
@@ -22,6 +22,7 @@
 #include "utils/elog.h"
 #include "pq_dist.h"
 #include <immintrin.h>
+
 #if PG_VERSION_NUM >= 130000
 #include "common/hashfn.h"
 #else
@@ -177,6 +178,7 @@ const char *HnswGetPQDistFileName(Relation index)
 		fread(buffer, 1, length, file);
 		buffer[length] = '\0';
 		opts->pq_dist_file_name = buffer;
+		fclose(file);
 		return opts->pq_dist_file_name;
 	}
 	return NULL;
@@ -1589,7 +1591,7 @@ void PQDist_load(PQDist *pq, const char *filename)
 	if (fin == NULL)
 	{
 		// printf("open %s fail\n", filename);
-		elog(ERROR, "open %s fail", filename);
+		elog(ERROR, "open %s fail: %d", filename, strlen(filename));
 		exit(-1);
 	}
 
