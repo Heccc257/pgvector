@@ -150,6 +150,7 @@ CreateGraphPages(HnswBuildState *buildstate)
 	//elog(INFO, "CreateGraphPages");
 	Relation index = buildstate->index;
 	ForkNumber forkNum = buildstate->forkNum;
+	int use_pq = buildstate->use_pq;
 	Size maxSize;
 	HnswElementTuple etup;
 	HnswNeighborTuple ntup;
@@ -189,7 +190,11 @@ CreateGraphPages(HnswBuildState *buildstate)
 		/* Calculate sizes */
 		etupSize = HNSW_ELEMENT_TUPLE_SIZE(VARSIZE_ANY(valuePtr));
 		Size neighborCount = 2 * buildstate->m;
-		ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (buildstate->m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m*buildstate->nbits/8);
+
+		if(use_pq)
+			ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (buildstate->m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m*buildstate->nbits/8);
+		else
+			ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(element->level, buildstate->m);
 		combinedSize = etupSize + ntupSize + sizeof(ItemIdData);
 
 		/* Initial size check */
@@ -253,7 +258,10 @@ WriteNeighborTuples(HnswBuildState *buildstate)
 	ForkNumber forkNum = buildstate->forkNum;
 	int m = buildstate->m;
 	int use_pq = buildstate->use_pq;
-	PQDist* pqdist = buildstate->pqdist;
+	PQDist* pqdist = NULL;
+	if(use_pq)
+		pqdist = buildstate->pqdist;
+
 	HnswElementPtr iter = buildstate->graph->head;
 	char *base = buildstate->hnswarea;
 	HnswNeighborTuple ntup;
@@ -267,8 +275,11 @@ WriteNeighborTuples(HnswBuildState *buildstate)
 		Buffer buf;
 		Page page;
 		Size neighborCount = (2) * m;
-		Size ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m*buildstate->nbits/8);
-
+		Size ntupSize;
+		if(use_pq)
+			ntupSize = MAXALIGN(offsetof(HnswNeighborTupleData, indextids) + ((element->level) + 2) * (m) * sizeof(ItemPointerData) + (1 + neighborCount)*buildstate->pq_m*buildstate->nbits/8);
+		else
+			ntupSize = HNSW_NEIGHBOR_TUPLE_SIZE(element->level, m);
 		/* Update iterator */
 		iter = element->next;
 

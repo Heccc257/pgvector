@@ -1,5 +1,5 @@
 #include "postgres.h"
-#include <errno.h>
+
 #include <math.h>
 #include "pq_dist.h"
 #include <stdio.h>
@@ -22,7 +22,6 @@
 #include "utils/elog.h"
 #include "pq_dist.h"
 #include <immintrin.h>
-
 #if PG_VERSION_NUM >= 130000
 #include "common/hashfn.h"
 #else
@@ -525,9 +524,9 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 		}
 	}
 	ntup->count = idx;
-	uint8_t *encode_data = palloc(pqdist->m*pqdist->nbits/8);
 	if (use_pq)
 	{
+		uint8_t *encode_data = palloc(pqdist->m * pqdist->nbits / 8);
 
 		PQCaculate_Codes(pqdist, DatumGetVector(HnswGetValue(base, e))->x, encode_data);
 		void *pq_start = (void *)(ntup->indextids + idx);
@@ -541,15 +540,15 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 
 		for (int i = 0; i < ntup->layer0_count; i++)
 		{
-			pq_store = pq_start + (pqdist->m*pqdist->nbits/8) * (idx + 1);
+			pq_store = pq_start + (pqdist->m * pqdist->nbits / 8) * (idx + 1);
 			idx += 1;
 			HnswCandidate *hc = &neighbors->items[i];
 			HnswElement hce = HnswPtrAccess(base, hc->element);
 			PQCaculate_Codes(pqdist, DatumGetVector(HnswGetValue(base, hce))->x, encode_data);
-			memcpy(pq_store, encode_data, pqdist->m*pqdist->nbits/8);
+			memcpy(pq_store, encode_data, pqdist->m * pqdist->nbits / 8);
 		}
+		pfree(encode_data);
 	}
-	pfree(encode_data);
 }
 
 /*
@@ -558,8 +557,8 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 static void
 LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int use_pq, int pq_m)
 {
-	//elog(INFO, "load neighbors from page");
-	//elog(INFO, "element->level:%d", element->level);
+	// elog(INFO, "load neighbors from page");
+	// elog(INFO, "element->level:%d", element->level);
 	char *base = NULL;
 
 	HnswNeighborTuple ntup = (HnswNeighborTuple)PageGetItem(page, PageGetItemId(page, element->neighborOffno));
@@ -618,9 +617,9 @@ LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int
  */
 void HnswLoadNeighbors(HnswElement element, Relation index, int m)
 {
-	//elog(INFO, "load neighbors");
-	//elog(INFO, "element->neighborPage:%d", element->neighborPage);
-	//elog(INFO, "element->lc:%d", element->level);
+	// elog(INFO, "load neighbors");
+	// elog(INFO, "element->neighborPage:%d", element->neighborPage);
+	// elog(INFO, "element->lc:%d", element->level);
 	Buffer buf;
 	Page page;
 
@@ -713,7 +712,6 @@ GetCandidateDistance(char *base, HnswCandidate *hc, Datum q, FmgrInfo *procinfo,
 	HnswElement hce = HnswPtrAccess(base, hc->element);
 	Datum value = HnswGetValue(base, hce);
 	return DatumGetFloat8(FunctionCall2Coll(procinfo, collation, q, value));
-
 }
 
 HnswCandidate *
@@ -997,7 +995,7 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 					f = ((HnswPairingHeapNode *)pairingheap_first(W))->inner;
 					eDistance = calc_dist_pq_loaded_by_id(pqdist, cElement->encode_data->data + pqdist->m * (i + 1) * pqdist->nbits / 8);
 					distances[i] = eDistance;
-					//elog(INFO, "distance:%f", eDistance);
+					// elog(INFO, "distance:%f", eDistance);
 
 					if (eDistance < f->distance || alwaysAdd)
 						AddToCandidates |= 1 << i;
@@ -1032,10 +1030,9 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 						if (wlen > ef)
 							pairingheap_remove_first(W);
 					}
-					
 				}
 			}
-			//pfree(AddToCancidates);
+			// pfree(AddToCancidates);
 			pfree(distances);
 			pfree(cElement->encode_data);
 		}
@@ -1591,7 +1588,7 @@ void PQDist_load(PQDist *pq, const char *filename)
 	if (fin == NULL)
 	{
 		// printf("open %s fail\n", filename);
-		elog(ERROR, "open %s fail: %d", filename, strlen(filename));
+		elog(ERROR, "open %s fail", filename);
 		exit(-1);
 	}
 
@@ -1643,7 +1640,7 @@ void PQCaculate_Codes(PQDist *pq, float *vec, uint8_t *encode_vec)
 				best_centroid = k;
 			}
 		}
-        if(pq->nbits == 8)
+		if (pq->nbits == 8)
 			encode_vec[j] = best_centroid;
 		else
 		{
@@ -1667,8 +1664,8 @@ void PQDist_free(PQDist *pq)
 		free(pq->pq_dist_cache_data);
 	}
 }
-//这个函数把nbits是4或8的都转成一个字节代表一个id
-uint8_t* extract_centroids_id(PQDist* pq, uint8_t* code)
+// 这个函数把nbits是4或8的都转成一个字节代表一个id
+uint8_t *extract_centroids_id(PQDist *pq, uint8_t *code)
 {
 	uint8_t *centroids_id = (uint8_t *)palloc(pq->m * sizeof(uint8_t));
 	memset(centroids_id, 0, pq->m);
@@ -1769,10 +1766,9 @@ void load_query_data_and_cache(PQDist *pqdist, const float *_qdata)
 	}
 }
 
-
 float calc_dist_pq_loaded_by_id(PQDist *pqdist, uint8_t *encode_data)
 {
-    uint8_t* ids = extract_centroids_id(pqdist, encode_data);
+	uint8_t *ids = extract_centroids_id(pqdist, encode_data);
 	float dist = 0;
 	__m256 simd_dist = _mm256_setzero_ps();
 	int q;
