@@ -526,13 +526,14 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 	ntup->count = idx;
 	if (use_pq)
 	{
-		uint8_t *encode_data = palloc(pqdist->m * pqdist->nbits / 8);
+		int PQSize = pqdist->m * pqdist->nbits / 8;
+		uint8_t *encode_data = palloc(PQSize);
 
 		PQCaculate_Codes(pqdist, DatumGetVector(HnswGetValue(base, e))->x, encode_data);
 		void *pq_start = (void *)(ntup->indextids + idx);
 		void *pq_store;
 
-		memcpy(pq_start, encode_data, pqdist->m);
+		memcpy(pq_start, encode_data, PQSize);
 
 		idx = 0;
 		HnswNeighborArray *neighbors = HnswGetNeighbors(base, e, 0);
@@ -545,7 +546,7 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
 			HnswCandidate *hc = &neighbors->items[i];
 			HnswElement hce = HnswPtrAccess(base, hc->element);
 			PQCaculate_Codes(pqdist, DatumGetVector(HnswGetValue(base, hce))->x, encode_data);
-			memcpy(pq_store, encode_data, pqdist->m * pqdist->nbits / 8);
+			memcpy(pq_store, encode_data, PQSize);
 		}
 		pfree(encode_data);
 	}
@@ -986,6 +987,8 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 				bool visited;
 
 				AddToVisited(base, &v, e, index, &visited);
+				uint8_t* data = cElement->encode_data->data;
+				int PQSize = pqdist->m * pqdist->nbits / 8;
 
 				if (!visited)
 				{
@@ -994,7 +997,7 @@ HnswSearchLayer(char *base, Datum q, List *ep, int ef, int lc, Relation index, F
 					bool alwaysAdd = wlen < ef;
 
 					f = ((HnswPairingHeapNode *)pairingheap_first(W))->inner;
-					eDistance = calc_dist_pq_loaded_by_id(pqdist, cElement->encode_data->data + pqdist->m * (i + 1) * pqdist->nbits / 8);
+					eDistance = calc_dist_pq_loaded_by_id(pqdist, data + (i + 1) * PQSize);
 					distances[i] = eDistance;
 					// elog(INFO, "distance:%f", eDistance);
 
