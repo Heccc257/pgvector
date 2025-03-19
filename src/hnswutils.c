@@ -555,7 +555,7 @@ void HnswSetNeighborTuple(char *base, HnswNeighborTuple ntup, HnswElement e, int
  * Load neighbors from page
  */
 static void
-LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int use_pq, int pq_m)
+LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int use_pq, int pq_m, int nbits)
 {
 	// elog(INFO, "load neighbors from page");
 	// elog(INFO, "element->level:%d", element->level);
@@ -572,7 +572,6 @@ LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int
 	if (ntup->count != neighborCount)
 		return;
 
-	void *pq_store = (void *)(ntup->indextids + ntup->count) + pq_m;
 
 	for (int i = 0; i < neighborCount; i++)
 	{
@@ -600,13 +599,14 @@ LoadNeighborsFromPage(HnswElement element, Relation index, Page page, int m, int
 	if (use_pq)
 	{
 		int layer0_count = ntup->layer0_count;
-		Encode_Data *encode_data = (Encode_Data *)palloc(offsetof(Encode_Data, data) + pq_m * (layer0_count + 1));
+		int PQSize = pq_m * nbits / 8;
+		Encode_Data *encode_data = (Encode_Data *)palloc(offsetof(Encode_Data, data) + PQSize * (layer0_count + 1));
 		void *pq_start = (void *)(ntup->indextids + neighborCount);
-		memcpy(encode_data->data, pq_start, pq_m);
+		memcpy(encode_data->data, pq_start, PQSize);
 		for (int i = 0; i < layer0_count; i++)
 		{
-			pq_store = pq_start + pq_m * (i + 1);
-			memcpy(encode_data->data + (i + 1) * pq_m, pq_store, pq_m);
+			void* pq_store = pq_start + PQSize * (i + 1);
+			memcpy(encode_data->data + (i + 1) * PQSize, pq_store, PQSize);
 		}
 		element->encode_data = encode_data;
 	}
@@ -628,8 +628,9 @@ void HnswLoadNeighbors(HnswElement element, Relation index, int m)
 	page = BufferGetPage(buf);
 	int use_pq = HnswGetUsePQ(index);
 	int pq_m = HnswGetPqM(index);
+	int nbits = HnswGetNbits(index);
 
-	LoadNeighborsFromPage(element, index, page, m, use_pq, pq_m);
+	LoadNeighborsFromPage(element, index, page, m, use_pq, pq_m, nbits);
 
 	UnlockReleaseBuffer(buf);
 }
