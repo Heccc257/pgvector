@@ -54,10 +54,8 @@ def optimize_product_quantization(X, M, k, max_iter=10, profile_distortion=False
             if profile_distortion:
                 distortion = compute_distortion(X_rot, Y)
                 distortions.append(distortion)
+                print(f'iter_num : {iter_num}, distortion : {distortion}')
         R, _ = orthogonal_procrustes(X, Y)
-        if profile_distortion:
-            for i, distortion in enumerate(distortions):
-                print(f'Iter {i}: Distortion: {distortion}')
     return R, sub_codebooks, sub_indexes
 
 if __name__ == '__main__':
